@@ -30,6 +30,7 @@ pip install -r requirements.txt
 here you can install a missing package 
 ```
 pip install psycopg2
+pip install psycopg2-binary
 ```
 structure of config.yml 
 ```
