@@ -1,21 +1,18 @@
-CO_SA:
-  drivername: postgresql
-  dbname: colombiasaludable
-  user: postgres
-  password:
+OLTP:
+  drivername: "ODBC Driver 17 for SQL Server"
+  dbname: 
+  user: 
+  password: 
   host: localhost
-  port:
+  port: 1433
 
-ETL_PRO:
-  drivername: postgresql
-  dbname: etl_process
-  user: postgres
-  password:
+OLAP:
+  drivername: "ODBC Driver 17 for SQL Server"
+  dbname: 
+  user: 
+  password: 
   host: localhost
-  port:
+  port: 1433
 
 LOAD_DIMENSIONS:
   True
-
-medicamentos:
-  sources/medicamentos.xls
