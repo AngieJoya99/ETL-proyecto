@@ -1,44 +1,32 @@
-# CS_etl_py
-Python etl for a health care database 
-## Requirements installation 
- **if not exists environment create one**
-```
+## Preparar bases de datos
+* Montar la OTLP en SQL server con sus respectivos datos, y crear una base de datos vacía donde se alacenará la OLAP a crear
 
-python3 -m venv my_env
+* La autenticación de SQL server debe ser por medio de usuario y contraseña, no con autenticación de windows
 
-#unix systems
-source my_env/bin/activate  
-
-#win
-python3 -m venv my_env
-
-#cmd.exe
-C:\> <venv>\Scripts\activate.bat
-
-#PowerShell
-PS C:\> <venv>\Scripts\Activate.ps1
+## Instalar entorno virtual y requerimientos
 ```
-your terminal should look like
-```
-(my_env) $
-```
-here you can install the packages by doing 
-```
+python -m venv my_env
 pip install -r requirements.txt
+pip install psycopg2
+pip install pyodbc
 ```
 
-here you can install a missing package 
-```
-pip install psycopg2
-pip install psycopg2-binary
-```
-structure of config.yml 
+## Configurar la conexión con la base de datos
+* Hacer una copia del archivo config_fill.yml que se llame config.yml
+
+* Llenar los campos con la información específica de la conexión
+
+
 ```
 nombre_conexion:
-  drivername: postgresql  
-  user: postgres # su username
-  password : valor_privado
-  port: 5432 # pordefecto 
-  host: localhost # la direccion a la base de datos
-  dbname: colombia_saludable #nombre de la base de datos
+  drivername: "ODBC Driver 17 for SQL Server"
+  dbname: #nombre de la base de datos
+  user: #usuario
+  password: #contraseña
+  host: localhost
+  port: #puerto, usualmente 1433
 ```
+
+## Probar la conexión
+
+Ejecutar el notebook pruebaConexion.ipynb y verificar que corra sin errores
