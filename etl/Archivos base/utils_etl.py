@@ -1,47 +1,4 @@
-from sqlalchemy import text, inspect
-import pandas as pd
-from sqlalchemy.engine import Engine
-
-def cargaSegura(engine, schema, table):
-    inspector = inspect(engine)
-
-    # Obtener columnas
-    columnas = [col["name"] for col in inspector.get_columns(table, schema=schema)]
-    columnas_problematicas = []
-
-    # Intentar cargar tabla completa
-    try:
-        return pd.read_sql_table(table_name=table, con=engine, schema=schema)
-    except Exception:
-        pass
-
-    # Detectar columnas problemáticas
-    for col in columnas:
-        try:
-            pd.read_sql_query(
-                f'SELECT TOP 10 "{col}" FROM "{schema}"."{table}"',
-                con=engine
-            )
-        except Exception:
-            columnas_problematicas.append(col)
-
-
-    # Columnas buenas
-    columnas_ok = [col for col in columnas if col not in columnas_problematicas]
-
-    # Si no hay columnas válidas
-    if not columnas_ok:
-        print(f"⚠ La tabla {schema}.{table} no tiene columnas convertibles. Retornando dataframe vacío.")
-        return pd.DataFrame()
-
-    # Cargar solo columnas válidas
-    query = (
-        f'SELECT {", ".join([f"""\"{c}\"""" for c in columnas_ok])} '
-        f'FROM "{schema}"."{table}"'
-    )
-
-    df = pd.read_sql_query(query, con=engine)
-    return df
+from sqlalchemy import Engine, text
 
 def new_data(conne: Engine) -> bool:
     queryo = text('select saved from hecho_atencion order by saved desc limit 1;')
