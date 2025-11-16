@@ -5,35 +5,59 @@ from sqlalchemy import text
 import yaml
 from sqlalchemy.dialects.postgresql import insert
 
+def loadDimCurrency(df, olap: Engine):
+    df.to_sql('DimCurrency', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_ips(dim_ips: DataFrame, etl_conn):
-    dim_ips.to_sql('dim_ips', etl_conn, if_exists='append', index_label='key_dim_ips')
+def loadDimCustomer(df, olap: Engine):
+    df.to_sql('DimCustomer', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadDimDate(df, olap: Engine):
+    df.to_sql('DimDate', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_medico(dim_medico: DataFrame, etl_conn: Engine):
-    dim_medico.to_sql('dim_medico', etl_conn, if_exists='append', index_label='key_dim_medico')
+def loadDimEmployee(df, olap: Engine):
+    df.to_sql('DimEmployee', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadDimGeography(df, olap: Engine):
+    df.to_sql('DimGeography', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_persona(dim_persona: DataFrame, etl_conn: Engine):
-    dim_persona.to_sql('dim_persona', con=etl_conn, index_label='key_dim_persona', if_exists='append')
+def loadDimProduct(df, olap: Engine):
+    df.to_sql('DimProduct', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadDimProductCategory(df, olap: Engine):
+    df.to_sql('DimProductCategory', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_servicio(dim_servicio: DataFrame, etl_conn: Engine):
-    dim_servicio.to_sql('dim_servicio', etl_conn, if_exists='append', index_label='key_dim_servicio')
+def loadDimProductSubcategory(df, olap: Engine):
+    df.to_sql('DimProductSubcategory', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadDimPromotion(df, olap: Engine):
+    df.to_sql('DimPromotion', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_fecha(dim_fecha: DataFrame, etl_conn: Engine):
-    dim_fecha.to_sql('dim_fecha', etl_conn, if_exists='append', index_label='key_dim_fecha')
+def loadDimReseller(df, olap: Engine):
+    df.to_sql('DimReseller', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadDimSalesReason(df, olap: Engine):
+    df.to_sql('DimSalesReason', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_data_trans_servicio(trans_servicio: DataFrame, etl_conn: Engine):
-    trans_servicio.to_sql('trans_servicio', etl_conn, if_exists='append', index_label='key_trans_servicio')
+def loadDimSalesTerritory(df, olap: Engine):
+    df.to_sql('DimSalesTerritory', olap, if_exists='append', index_label='nombreColumnaLlave')
 
+def loadFactAdditionalInternationalProductDescription(df, olap: Engine):
+    df.to_sql('FactAdditionalInternationalProductDescription', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def load_hecho_atencion(hecho_atencion: DataFrame, etl_conn: Engine):
-    hecho_atencion.to_sql('hecho_atencion', etl_conn, if_exists='append', index=False)
-def load_hecho_entrega(hecho_entrega: DataFrame, etl_conn: Engine):
-    hecho_entrega.to_sql('hecho_entrega', etl_conn, if_exists='append', index=False)
+def loadFactCurrencyRate(df, olap: Engine):
+    df.to_sql('FactCurrencyRate', olap, if_exists='append', index_label='nombreColumnaLlave')
+
+def loadFactInternetSales(df, olap: Engine):
+    df.to_sql('FactInternetSales', olap, if_exists='append', index_label='nombreColumnaLlave')
+
+def loadFactInternetSalesReason(df, olap: Engine):
+    df.to_sql('FactInternetSalesReason', olap, if_exists='append', index_label='nombreColumnaLlave')
+
+def loadFactResellerSales(df, olap: Engine):
+    df.to_sql('FactResellerSales', olap, if_exists='append', index_label='nombreColumnaLlave')
+
+def loadNewFactCurrencyRate(df, olap: Engine):
+    df.to_sql('NewFactCurrencyRate', olap, if_exists='append', index_label='nombreColumnaLlave')
 
 def load(table: DataFrame, etl_conn: Engine, tname, replace: bool = False):
     """
