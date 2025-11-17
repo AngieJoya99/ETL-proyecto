@@ -46,7 +46,7 @@ if utils_etl.new_data(olap):
     production = extract.extractProduction(oltp)
     purchasing = extract.extractPurchasing(oltp)
     sales = extract.extractSales(oltp)
-
+    hierarchy = extract.extractEmployeeHierarchy(oltp)
 
     #Transform - Crear Tablas
     dimCurrency = transform.transformDimCurrency(sales["Currency"])
@@ -60,11 +60,11 @@ if utils_etl.new_data(olap):
         sales["SalesPerson"], 
         person["Person"], 
         person["EmailAddress"], 
-        person["PersonPhone"], 
-        "Hierarchy"# ["Hierarchy"]
+        person["PersonPhone"],
+        hierarchy
     )
     dimGeography = transform.transformDimGeography(sales, person)
-    dimProduct = "FALTA AÑADIR"
+    dimProduct = "FALTA AÑADIR" #transform.transformDimProduct(tablas)
     dimProductCategory = transform.transformDimProductCategory(production["ProductCategory"])
     dimProductSubcategory = transform.transformDimProductSubcategory(production["ProductSubcategory"])
     dimPromotion = transform.transformDimPromotion(sales["SpecialOffer"])
@@ -83,21 +83,30 @@ if utils_etl.new_data(olap):
     
     #Transform - Crear columnas que son llaver foráneas
     dimCustomer = transform.fkDimCustomer(dimCustomer, dimGeography)
+    factCurrencyRate = transform.fkFactCurrencyRate(factCurrencyRate, dimCurrency)
+    newFactCurrencyRate = transform.fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate)
     
     #Load
-    load.load(dim_ips, olap, 'dim_ips', True)
-    load.load(dim_fecha, olap, 'dim_fecha', True)
-    load.load(dim_servicio, olap, 'dim_servicio', True)
-    load.load(dim_persona, olap, 'dim_persona', True)
-    load.load(dim_medico, olap, 'dim_medico', True)
-    load.load(trans_servicio, olap, 'trans_servicio', True)
-    load.load(dim_diag, olap, 'dim_diag', True)
-    load.load(dim_demo, olap, 'dim_demografia', True)
-    load.load(dim_drug,olap,'dim_medicamentos',True)
+    load.loadDimCurrency(dimCurrency,olap)
+    load.loadDimCustomer(dimCustomer, olap)
+    load.loadDimDate(dimDate, olap)
+    load.loadDimEmployee(dimEmployee, olap)
+    load.loadDimGeography(dimGeography, olap)
+    load.loadDimProduct(dimProduct, olap)
+    load.loadDimProductCategory(dimProductCategory, olap)
+    load.loadDimProductSubcategory(dimProductSubcategory, olap)
+    load.loadDimPromotion(dimPromotion, olap)
+    load.loadDimReseller(dimReseller, olap)
+    load.loadDimSalesReason(dimSalesReason, olap)
+    load.loadDimSalesTerritory(dimSalesTerritory, olap)
+
+    load.loadFactCurrencyRate(factCurrencyRate, olap)
+    load.loadFactInternetSales(factInternetSales, olap)
+    load.loadFactInternetSalesReason(factInternetSalesReason, olap)
+    load.loadFactResellerSales(factResellerSales, olap)
+    load.loadNewFactCurrencyRate(newFactCurrencyRate, olap)
 
     print('success all facts loaded')
     
 else:
     print('done not new data')
-
-#%%

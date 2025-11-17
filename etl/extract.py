@@ -98,17 +98,6 @@ def extractSales(conection: Engine):
         
     return sales
 
-    # Si no hay columnas válidas
-    if not columnas_ok:
-        print(f"⚠ La tabla {schema}.{table} no tiene columnas convertibles. Retornando dataframe vacío.")
-        return pd.DataFrame()
-
-    # Cargar solo columnas válidas
-    query = (
-        f'SELECT {", ".join([f"""\"{c}\"""" for c in columnas_ok])} '
-        f'FROM "{schema}"."{table}"'
-    )
-
 def extractEmployeeHierarchy(conection: Engine):
     query = """
     SELECT 
