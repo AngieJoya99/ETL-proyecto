@@ -95,7 +95,7 @@ def transformDimCustomer(person, sales):
     dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'PersonID', 'StoreID', 'TerritoryID',
        'AccountNumber', 'ModifiedDate_x', 'AddressID', 'AddressTypeID',
        'rowguid', 'ModifiedDate_y', 'City',
-       'StateProvinceID', 'PostalCode', 'ModifiedDate'        
+       'StateProvinceID', 'ModifiedDate'        
     ])
     
     return dimCustomer
@@ -576,7 +576,7 @@ def transformFactCurrencyRate(sales):
     
     factCurrencyRate["DateKey"] = factCurrencyRate["CurrencyRateDate"].dt.strftime("%Y%m%d")
     
-    factCurrencyRate.rename(columns={
+    factCurrencyRate = factCurrencyRate.rename(columns={
       'CurrencyRateDate' : 'Date'
     })
     
@@ -691,5 +691,33 @@ def transformNewFactCurrencyRate(sales):
         'CurrencyRateDate' : 'CurrencyDate', 
         'ToCurrencyCode' : 'CurrencyID'
     })
+    
+    return newFactCurrencyRate
+
+def fkDimCustomer(dimCustomer, dimGeography):
+    llave = dimGeography[["GeographyKey", "PostalCode"]].copy()
+    dimCustomer = dimCustomer.merge(llave, on='PostalCode', how='left')
+    dimCustomer = dimCustomer.drop(columns=['PostalCode'])
+    return dimCustomer
+
+def fkFactCurrencyRate(factCurrencyRate, dimCurrency):
+    currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
+    factCurrencyRate = factCurrencyRate.merge(currency, left_on='ToCurrencyCode', right_on='CurrencyAlternateKey', how='left')
+    factCurrencyRate = factCurrencyRate.drop(columns=['ToCurrencyCode', 'CurrencyAlternateKey'])
+    
+    return factCurrencyRate
+
+def fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate):
+    #Añadir CurrencyKey
+    currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
+    newFactCurrencyRate = newFactCurrencyRate.merge(currency, left_on='CurrencyID', right_on='CurrencyAlternateKey', how='left')
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyID', 'CurrencyAlternateKey'])
+    
+    #Añadir DateKey
+    date = dimDate[["DateKey", "FullDateAlternateKey"]].copy()
+    newFactCurrencyRate['CurrencyDate'] = pd.to_datetime(newFactCurrencyRate['CurrencyDate'])
+    date['FullDateAlternateKey'] = pd.to_datetime(date['FullDateAlternateKey'])
+    newFactCurrencyRate = newFactCurrencyRate.merge(date, left_on='CurrencyDate', right_on='FullDateAlternateKey', how='left')
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyDate', 'FullDateAlternateKey'])
     
     return newFactCurrencyRate
