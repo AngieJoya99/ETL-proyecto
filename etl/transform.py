@@ -36,8 +36,6 @@ def transformDimCurrency(currency):
 #EnglishOccupation, SpanishOccupation, FrenchOccupation, HouseOwnerFlag, NumberCarsOwned, 
 # AddressLine1, AddressLine2, Phone, DateFirstPurchase, CommuteDistance
 def transformDimCustomer(person, sales):
-    #Falta definir la llave foránea GeographyKey
-    
     #Tipos IN = Individual Customer    
     dimCustomer = person["Person"][person["Person"]["PersonType"] == 'IN'].copy()
     dimCustomer = dimCustomer.drop(columns=[
@@ -119,7 +117,7 @@ def transformDimDate():
     
     dimDate = pd.DataFrame({
         "DateKey": fechas.strftime("%Y%m%d").astype(int),
-        "FullDateAlternateKey": fechas.strftime("%Y-%m-%d") + "T00:00:00.000Z",
+        "FullDateAlternateKey": fechas.strftime("%Y-%m-%d"),
         "DayNumberOfWeek": fechas.weekday + 1,
         "EnglishDayNameOfWeek": fechas.day_name(),
         "SpanishDayNameOfWeek": fechas.day_name().map({
@@ -376,8 +374,17 @@ def transformDimSalesTerritory(tablas):
 
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
 # Date
-def transformFactCurrencyRate(tablas):
-    factCurrencyRate = pd.DataFrame()
+def transformFactCurrencyRate(sales):
+    factCurrencyRate = sales["CurrencyRate"].drop(columns=[
+      'FromCurrencyCode', 'CurrencyRateID', 'ModifiedDate'
+    ])
+    
+    factCurrencyRate["DateKey"] = factCurrencyRate["CurrencyRateDate"].dt.strftime("%Y%m%d")
+    
+    factCurrencyRate.rename(columns={
+      'CurrencyRateDate' : 'Date'
+    })
+    
     return factCurrencyRate
 
 #Atributos: ProductKey, OrderDateKey, DueDateKey, ShipDateKey
@@ -392,8 +399,24 @@ def transformFactInternetSales(tablas):
     return factInternetSales
 
 #Atributos: SalesOrderNumber, SalesOrderLineNumber, SalesReasonKey
-def transformFactInternetSalesReason(tablas):
-    factInternetSalesReason = pd.DataFrame()
+def transformFactInternetSalesReason(sales):
+    factInternetSalesReason = sales["SalesOrderHeaderSalesReason"].drop(columns=['ModifiedDate'])
+    factInternetSalesReason = factInternetSalesReason.rename(columns={'SalesReasonID' : 'SalesReasonKey'})
+
+    orderDetails  = sales["SalesOrderDetail"].drop(columns=[
+        'ModifiedDate', 'rowguid', 'UnitPriceDiscount', 'UnitPrice', 'CarrierTrackingNumber',
+        'SpecialOfferID', 'OrderQty', 'ProductID', 'LineTotal'
+    ])
+    orderDetails = orderDetails.sort_values(by=['SalesOrderID', 'SalesOrderDetailID'])
+    orderDetails["SalesOrderLineNumber"] =  (
+        orderDetails.groupby('SalesOrderID').cumcount() + 1
+    )
+
+    factInternetSalesReason = factInternetSalesReason.merge(orderDetails, on='SalesOrderID', how='inner')
+    factInternetSalesReason = factInternetSalesReason.drop(columns=['SalesOrderDetailID'])
+    factInternetSalesReason["SalesOrderID"] = 'SO' + factInternetSalesReason["SalesOrderID"].astype(str)
+    factInternetSalesReason = factInternetSalesReason.rename(columns={'SalesOrderID':'SalesOrderNumber'})
+
     return factInternetSalesReason
 
 #Atributos: ProductKey, OrderDateKey, DueDateKey
@@ -409,6 +432,14 @@ def transformFactResellerSales(tablas):
 
 #Atributos: AverageRate, CurrencyID, CurrencyDate, EndOfDayRate
 # CurrencyKey, DateKey
-def transformNewFactCurrencyRate(tablas):
-    newFactCurrencyRate = pd.DataFrame()
+def transformNewFactCurrencyRate(sales):
+    newFactCurrencyRate = sales["CurrencyRate"].drop(columns=[
+        'CurrencyRateID', 'FromCurrencyCode', 'ModifiedDate'
+    ])
+
+    newFactCurrencyRate = newFactCurrencyRate.rename(columns={
+        'CurrencyRateDate' : 'CurrencyDate', 
+        'ToCurrencyCode' : 'CurrencyID'
+    })
+    
     return newFactCurrencyRate
