@@ -442,8 +442,84 @@ def transformDimProductSubcategory(ProductSubcategory):
 # SpanishPromotionName, FrenchPromotionName, DiscountPct, EnglishPromotionType
 # SpanishPromotionType, FrenchPromotionType, EnglishPromotionCategory, SpanishPromotionCategory
 # FrenchPromotionCategory, StartDate, EndDate, MinQty, MaxQty
-def transformDimPromotion(tablas):
-    dimPromotion = pd.DataFrame()
+def transformDimPromotion(specialOffer):
+    dimPromotion = pd.DataFrame(columns=[
+        "PromotionKey", "PromotionAlternateKey", "EnglishPromotionName", "SpanishPromotionName",
+        "FrenchPromotionName", "DiscountPct", "EnglishPromotionType", "SpanishPromotionType",
+        "FrenchPromotionType", "EnglishPromotionCategory", "SpanishPromotionCategory",
+        "FrenchPromotionCategory", "StartDate", "EndDate", "MinQty", "MaxQty"
+    ])
+
+    dimPromotion["PromotionKey"] = specialOffer["SpecialOfferID"]
+    dimPromotion["PromotionAlternateKey"] = specialOffer["SpecialOfferID"]
+    dimPromotion["EnglishPromotionName"] = specialOffer["Description"]
+
+    translations_es = {
+        "No Discount": "Sin descuento",
+        "Volume Discount 11 to 14": "Descuento por volumen (entre 11 y 14)",
+        "Volume Discount 15 to 24": "Descuento por volumen (entre 15 y 24)",
+        "Volume Discount 25 to 40": "Descuento por volumen (entre 25 y 40)",
+        "Volume Discount 41 to 60": "Descuento por volumen (entre 41 y 60)",
+        "Volume Discount over 60": "Descuento por volumen (más de 60)",
+        "Mountain-100 Clearance Sale": "Liquidación de bicicleta de montaña, 100",
+        "Sport Helmet Discount-2002": "Casco deportivo, descuento: 2002",
+        "Road-650 Overstock": "Bicicleta de carretera: 650, oferta especial",
+        "Mountain Tire Sale": "Oferta de cubierta de montaña",
+        "Sport Helmet Discount-2003": "Casco deportivo, descuento: 2003",
+        "LL Road Frame Sale": "Oferta de cuadro de carretera GB",
+        "Touring-3000 Promotion": "Promoción ‘Touring-3000’",
+        "Touring-1000 Promotion": "Promoción ‘Touring-1000’",
+        "Half-Price Pedal Sale": "Venta de pedales a mitad de precio",
+        "Mountain-500 Silver Clearance Sale": "Liquidación de bicicleta de montaña, 500, plateada",
+        "Volume Discount": "Descuento por volumen",
+        "Discontinued Product": "Descatalogado",
+        "Seasonal Discount": "Descuento de temporada",
+        "Excess Inventory": "Inventario excedente",
+        "New Product": "Producto Nuevo",
+        "Reseller": "Distribuidor",
+        "Customer": "Cliente"
+    }
+
+    translations_fr = {
+        "No Discount": "Aucune remise",
+        "Volume Discount 11 to 14": "Remise sur quantité (de 11 à 14)",
+        "Volume Discount 15 to 24": "Remise sur quantité (de 15 à 24)",
+        "Volume Discount 25 to 40": "Remise sur quantité (de 25 à 40)",
+        "Volume Discount 41 to 60": "Remise sur quantité (de 41 à 60)",
+        "Volume Discount over 60": "Remise sur quantité (au-delà de 60)",
+        "Mountain-100 Clearance Sale": "Liquidation VTT 100",
+        "Sport Helmet Discount-2002": "Remise sur les casques sport - 2002",
+        "Road-650 Overstock": "Déstockage Vélo de route 650",
+        "Mountain Tire Sale": "Vente de pneus de VTT",
+        "Sport Helmet Discount-2003": "Remise sur les casques sport - 2003",
+        "LL Road Frame Sale": "Vente de cadres de vélo de route LL",
+        "Touring-3000 Promotion": "Promotion “Touring-3000”",
+        "Touring-1000 Promotion": "Promotion “Touring-1000”",
+        "Half-Price Pedal Sale": "Pédales à moitié prix",
+        "Mountain-500 Silver Clearance Sale": "Liquidation VTT 500 argent",
+        "Volume Discount": "Remise sur quantité",
+        "Discontinued Product": "Ce produit n'est plus commercialisé",
+        "Seasonal Discount": "Remise saisonnière",
+        "Excess Inventory": "Déstockage",
+        "New Product": "Nouveau produit",
+        "Reseller": "Revendeur",
+        "Customer": "Client"
+    }
+
+    dimPromotion["SpanishPromotionName"] = dimPromotion["EnglishPromotionName"].map(translations_es)
+    dimPromotion["FrenchPromotionName"] = dimPromotion["EnglishPromotionName"].map(translations_fr)
+    dimPromotion["DiscountPct"] = specialOffer["DiscountPct"]
+    dimPromotion["EnglishPromotionType"] = specialOffer["Type"]
+    dimPromotion["SpanishPromotionType"] = dimPromotion["EnglishPromotionType"].map(translations_es)
+    dimPromotion["FrenchPromotionType"] = dimPromotion["EnglishPromotionType"].map(translations_fr)
+    dimPromotion["EnglishPromotionCategory"] = specialOffer["Category"]
+    dimPromotion["SpanishPromotionCategory"] = dimPromotion["EnglishPromotionCategory"].map(translations_es)
+    dimPromotion["FrenchPromotionCategory"] = dimPromotion["EnglishPromotionCategory"].map(translations_fr)
+    dimPromotion["StartDate"] = specialOffer["StartDate"]
+    dimPromotion["EndDate"] = specialOffer["EndDate"]
+    dimPromotion["MinQty"] = specialOffer["MinQty"]
+    dimPromotion["MaxQty"] = specialOffer["MaxQty"]
+
     return dimPromotion
 
 #Atributos: ResellerKey, GeographyKey, ResellerAlternateKey, Phone
