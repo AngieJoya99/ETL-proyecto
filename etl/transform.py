@@ -9,6 +9,8 @@ from mlxtend.frequent_patterns import apriori
 from mlxtend.preprocessing import TransactionEncoder
 from pandas import DataFrame
 import utils_etl
+import utils_etl
+import utils_etl
 
 #Las dimensiones a crear son: DimCurrency, DimCustomer, DimDate, DimEmployee, DimGeography, DimProduct,
 #DimProductCategory, DimProductSubcategory, DimPromotion, DimReseller, DimSalesReason, DimSalesTerritory
@@ -36,8 +38,6 @@ def transformDimCurrency(currency):
 #EnglishOccupation, SpanishOccupation, FrenchOccupation, HouseOwnerFlag, NumberCarsOwned, 
 # AddressLine1, AddressLine2, Phone, DateFirstPurchase, CommuteDistance
 def transformDimCustomer(person, sales):
-    #Falta definir la llave foránea GeographyKey
-    
     #Tipos IN = Individual Customer    
     dimCustomer = person["Person"][person["Person"]["PersonType"] == 'IN'].copy()
     dimCustomer = dimCustomer.drop(columns=[
@@ -96,7 +96,7 @@ def transformDimCustomer(person, sales):
     dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'PersonID', 'StoreID', 'TerritoryID',
        'AccountNumber', 'ModifiedDate_x', 'AddressID', 'AddressTypeID',
        'rowguid', 'ModifiedDate_y', 'City',
-       'StateProvinceID', 'PostalCode', 'ModifiedDate'        
+       'StateProvinceID', 'ModifiedDate'        
     ])
     
     return dimCustomer
@@ -119,7 +119,7 @@ def transformDimDate():
     
     dimDate = pd.DataFrame({
         "DateKey": fechas.strftime("%Y%m%d").astype(int),
-        "FullDateAlternateKey": fechas.strftime("%Y-%m-%d") + "T00:00:00.000Z",
+        "FullDateAlternateKey": fechas.strftime("%Y-%m-%d"),
         "DayNumberOfWeek": fechas.weekday + 1,
         "EnglishDayNameOfWeek": fechas.day_name(),
         "SpanishDayNameOfWeek": fechas.day_name().map({
@@ -281,8 +281,44 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
 #Atributos: GeographyKey, City, StateProvinceCode, StateProvinceName
 # CountryRegionCode, EnglishCountryRegionName, SpanishCountryRegionName, FrenchCountryRegionName
 # PostalCode, SalesTerritoryKey, IpAddressLocator
-def transformDimGeography(tablas):
-    dimGeography = pd.DataFrame()
+def transformDimGeography(sales, person):
+    dimGeography = sales["SalesTerritory"].drop(columns=[
+        'SalesYTD', 'CostYTD', 'CostLastYear', 'rowguid', 'ModifiedDate', 'SalesLastYear',
+        'Group', 'Name'
+    ]).drop_duplicates()
+    
+    countryNameMap = {
+        "US" : "United States", "CA" : "Canada", "FR" : "France", "DE" : "Germany",
+        "AU" : "Australia", "GB" : "United Kingdom"
+    }
+    
+    countryMap = {"Australia": {"Spanish": "Australia", "French": "Australie"},
+    "Canada": {"Spanish": "Canada", "French": "Canada"},
+    "Germany": {"Spanish": "Alemania", "French": "Allemagne"},
+    "France": {"Spanish": "Francia", "French": "France"},
+    "United Kingdom": {"Spanish": "Reino Unido", "French": "Royaume-Uni"},
+    "United States": {"Spanish": "Estados Unidos", "French": "États-Unis"}}
+    
+    dimGeography["EnglishCountryRegionName"] = dimGeography["CountryRegionCode"].map(lambda x: countryNameMap[x])
+    dimGeography["SpanishCountryRegionName"] = dimGeography["EnglishCountryRegionName"].map(lambda x: countryMap[x]["Spanish"])
+    dimGeography["FrenchCountryRegionName"] = dimGeography["EnglishCountryRegionName"].map(lambda x: countryMap[x]["French"])
+    
+    province = person["StateProvince"].drop(columns=[
+        'CountryRegionCode', 'IsOnlyStateProvinceFlag', 'rowguid', 'ModifiedDate'
+    ]).drop_duplicates()
+    
+    dimGeography = dimGeography.merge(province, on='TerritoryID', how='right')
+    dimGeography = dimGeography.rename(columns={'Name':'StateProvinceName'})
+    
+    city = person["Address"].drop(columns=[
+        'AddressID', 'AddressLine1', 'AddressLine2', 'rowguid', 'ModifiedDate'
+    ]).drop_duplicates()
+    
+    dimGeography = dimGeography.merge(city, on='StateProvinceID', how='right')
+    dimGeography = dimGeography.rename(columns={'TerritoryID':'SalesTerritoryKey'})
+    dimGeography["GeographyKey"] = range(1, len(dimGeography) + 1)
+    dimGeography["IpAddressLocator"] = utils_etl.generate_unique_ip(dimGeography["GeographyKey"])
+    dimGeography = dimGeography.drop(columns=['StateProvinceID'])
     return dimGeography
 
 #Atributos: ProductKey, ProductAlternateKey, ProductSubcategoryKey, WeightUnitMeasureCode
@@ -300,22 +336,191 @@ def transformDimProduct(tablas):
 
 #Atributos: ProductCategoryKey, ProductCategoryAlternateKey, EnglishProductCategoryName, SpanishProductCategoryName
 # FrenchProductCategoryName
-def transformDimProductCategory(tablas):
-    dimProductCategory = pd.DataFrame()
+
+def transformDimProductCategory(productCategory):
+    dimProductCategory = pd.DataFrame(columns=[ 
+        "ProductCategoryKey", "ProductCategoryAlternateKey",
+        "EnglishProductCategoryName", "SpanishProductCategoryName", "FrenchProductCategoryName"
+    ])
+
+    translationsProductCategory = {
+    "Bikes": {
+        "es": "Bicicletas",
+        "fr": "Vélos"
+    },
+    "Components": {
+        "es": "Componentes",
+        "fr": "Composants"
+    },
+    "Clothing": {
+        "es": "Ropa",
+        "fr": "Vêtements"
+    },
+    "Accessories": {
+        "es": "Accesorios",
+        "fr": "Accessoires"
+    }
+}
+
+    dimProductCategory["ProductCategoryKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["ProductCategoryAlternateKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["EnglishProductCategoryName"] = productCategory["Name"]
+    dimProductCategory["SpanishProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["es"])
+
+
+    dimProductCategory["FrenchProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["fr"])
+
     return dimProductCategory
 
 #Atributos: ProductSubcategoryKey, ProductSubcategoryAlternateKey, EnglishProductSubcategoryName, SpanishProductSubcategoryName
 # FrenchProductSubcategoryName, ProductCategoryKey
-def transformDimProductSubcategory(tablas):
-    dimProductSubcategory = pd.DataFrame()
+def transformDimProductSubcategory(ProductSubcategory):
+
+    translationsSubcategory = {
+    "Mountain Bikes": {"es": "Bicicletas de Montaña", "fr": "Vélos de Montagne"},
+    "Road Bikes": {"es": "Bicicletas de Ruta", "fr": "Vélos de Route"},
+    "Touring Bikes": {"es": "Bicicletas de Turismo", "fr": "Vélos de Tourisme"},
+    "Handlebars": {"es": "Manillares", "fr": "Guidons"},
+    "Bottom Brackets": {"es": "Ejes de Centro", "fr": "Boîtiers de Pédalier"},
+    "Brakes": {"es": "Frenos", "fr": "Freins"},
+    "Chains": {"es": "Cadenas", "fr": "Chaînes"},
+    "Cranksets": {"es": "Juego de Bielas", "fr": "Pédaliers"},
+    "Derailleurs": {"es": "Desviadores", "fr": "Dérailleurs"},
+    "Forks": {"es": "Horquillas", "fr": "Fourches"},
+    "Headsets": {"es": "Juegos de Dirección", "fr": "Jeux de Direction"},
+    "Mountain Frames": {"es": "Marcos de Montaña", "fr": "Cadres de Montagne"},
+    "Pedals": {"es": "Pedales", "fr": "Pédales"},
+    "Road Frames": {"es": "Marcos de Ruta", "fr": "Cadres de Route"},
+    "Saddles": {"es": "Sillines", "fr": "Selles"},
+    "Touring Frames": {"es": "Marcos de Turismo", "fr": "Cadres de Tourisme"},
+    "Wheels": {"es": "Ruedas", "fr": "Roues"},
+    "Bib-Shorts": {"es": "Pantalones con Tirantes", "fr": "Cuissards à Bretelles"},
+    "Caps": {"es": "Gorras", "fr": "Casquettes"},
+    "Gloves": {"es": "Guantes", "fr": "Gants"},
+    "Jerseys": {"es": "Jerseys", "fr": "Maillots"},
+    "Shorts": {"es": "Pantalonetas", "fr": "Shorts"},
+    "Socks": {"es": "Medias", "fr": "Chaussettes"},
+    "Tights": {"es": "Mallas", "fr": "Collants"},
+    "Vests": {"es": "Chalecos", "fr": "Gilets"},
+    "Bike Racks": {"es": "Portabicicletas", "fr": "Porte-Vélos"},
+    "Bike Stands": {"es": "Soportes para Bicicletas", "fr": "Supports de Vélo"},
+    "Bottles and Cages": {"es": "Botellas y Portabotellas", "fr": "Bouteilles et Porte-Bouteilles"},
+    "Cleaners": {"es": "Limpiadores", "fr": "Nettoyants"},
+    "Fenders": {"es": "Guardabarros", "fr": "Garde-Boue"},
+    "Helmets": {"es": "Cascos", "fr": "Casques"},
+    "Hydration Packs": {"es": "Mochilas de Hidratación", "fr": "Sacs d'Hydratation"},
+    "Lights": {"es": "Luces", "fr": "Lumières"},
+    "Locks": {"es": "Candados", "fr": "Antivols"},
+    "Panniers": {"es": "Alforjas", "fr": "Sacoches"},
+    "Pumps": {"es": "Bombas de Aire", "fr": "Pompes"},
+    "Tires and Tubes": {"es": "Llantas y Tubos", "fr": "Pneus et Chambres à Air"}
+}
+
+    dimProductSubcategory = pd.DataFrame(columns=[ 
+        "ProductSubcategoryKey", "ProductSubcategoryAlternateKey",
+        "EnglishProductSubcategoryName", "SpanishProductSubcategoryName", "FrenchProductSubcategoryName",
+        "ProductCategoryKey"
+    ])
+
+    dimProductSubcategory["ProductSubcategoryKey"] = ProductSubcategory["ProductSubcategoryID"]
+    dimProductSubcategory["ProductSubcategoryAlternateKey"] = ProductSubcategory["ProductSubcategoryID"]
+    dimProductSubcategory["EnglishProductSubcategoryName"] = ProductSubcategory["Name"]
+    dimProductSubcategory["SpanishProductSubcategoryName"] = dimProductSubcategory["EnglishProductSubcategoryName"].apply(
+    lambda x: translationsSubcategory[x]["es"]
+)
+    dimProductSubcategory["FrenchProductSubcategoryName"] = dimProductSubcategory["EnglishProductSubcategoryName"].apply(
+    lambda x: translationsSubcategory[x]["fr"]
+)
+    dimProductSubcategory["ProductCategoryKey"] = ProductSubcategory["ProductCategoryID"]
+    
     return dimProductSubcategory
 
 #Atributos: PromotionKey, PromotionAlternateKey, EnglishPromotionName
 # SpanishPromotionName, FrenchPromotionName, DiscountPct, EnglishPromotionType
 # SpanishPromotionType, FrenchPromotionType, EnglishPromotionCategory, SpanishPromotionCategory
 # FrenchPromotionCategory, StartDate, EndDate, MinQty, MaxQty
-def transformDimPromotion(tablas):
-    dimPromotion = pd.DataFrame()
+def transformDimPromotion(specialOffer):
+    dimPromotion = pd.DataFrame(columns=[
+        "PromotionKey", "PromotionAlternateKey", "EnglishPromotionName", "SpanishPromotionName",
+        "FrenchPromotionName", "DiscountPct", "EnglishPromotionType", "SpanishPromotionType",
+        "FrenchPromotionType", "EnglishPromotionCategory", "SpanishPromotionCategory",
+        "FrenchPromotionCategory", "StartDate", "EndDate", "MinQty", "MaxQty"
+    ])
+
+    dimPromotion["PromotionKey"] = specialOffer["SpecialOfferID"]
+    dimPromotion["PromotionAlternateKey"] = specialOffer["SpecialOfferID"]
+    dimPromotion["EnglishPromotionName"] = specialOffer["Description"]
+
+    translations_es = {
+        "No Discount": "Sin descuento",
+        "Volume Discount 11 to 14": "Descuento por volumen (entre 11 y 14)",
+        "Volume Discount 15 to 24": "Descuento por volumen (entre 15 y 24)",
+        "Volume Discount 25 to 40": "Descuento por volumen (entre 25 y 40)",
+        "Volume Discount 41 to 60": "Descuento por volumen (entre 41 y 60)",
+        "Volume Discount over 60": "Descuento por volumen (más de 60)",
+        "Mountain-100 Clearance Sale": "Liquidación de bicicleta de montaña, 100",
+        "Sport Helmet Discount-2002": "Casco deportivo, descuento: 2002",
+        "Road-650 Overstock": "Bicicleta de carretera: 650, oferta especial",
+        "Mountain Tire Sale": "Oferta de cubierta de montaña",
+        "Sport Helmet Discount-2003": "Casco deportivo, descuento: 2003",
+        "LL Road Frame Sale": "Oferta de cuadro de carretera GB",
+        "Touring-3000 Promotion": "Promoción ‘Touring-3000’",
+        "Touring-1000 Promotion": "Promoción ‘Touring-1000’",
+        "Half-Price Pedal Sale": "Venta de pedales a mitad de precio",
+        "Mountain-500 Silver Clearance Sale": "Liquidación de bicicleta de montaña, 500, plateada",
+        "Volume Discount": "Descuento por volumen",
+        "Discontinued Product": "Descatalogado",
+        "Seasonal Discount": "Descuento de temporada",
+        "Excess Inventory": "Inventario excedente",
+        "New Product": "Producto Nuevo",
+        "Reseller": "Distribuidor",
+        "Customer": "Cliente"
+    }
+
+    translations_fr = {
+        "No Discount": "Aucune remise",
+        "Volume Discount 11 to 14": "Remise sur quantité (de 11 à 14)",
+        "Volume Discount 15 to 24": "Remise sur quantité (de 15 à 24)",
+        "Volume Discount 25 to 40": "Remise sur quantité (de 25 à 40)",
+        "Volume Discount 41 to 60": "Remise sur quantité (de 41 à 60)",
+        "Volume Discount over 60": "Remise sur quantité (au-delà de 60)",
+        "Mountain-100 Clearance Sale": "Liquidation VTT 100",
+        "Sport Helmet Discount-2002": "Remise sur les casques sport - 2002",
+        "Road-650 Overstock": "Déstockage Vélo de route 650",
+        "Mountain Tire Sale": "Vente de pneus de VTT",
+        "Sport Helmet Discount-2003": "Remise sur les casques sport - 2003",
+        "LL Road Frame Sale": "Vente de cadres de vélo de route LL",
+        "Touring-3000 Promotion": "Promotion “Touring-3000”",
+        "Touring-1000 Promotion": "Promotion “Touring-1000”",
+        "Half-Price Pedal Sale": "Pédales à moitié prix",
+        "Mountain-500 Silver Clearance Sale": "Liquidation VTT 500 argent",
+        "Volume Discount": "Remise sur quantité",
+        "Discontinued Product": "Ce produit n'est plus commercialisé",
+        "Seasonal Discount": "Remise saisonnière",
+        "Excess Inventory": "Déstockage",
+        "New Product": "Nouveau produit",
+        "Reseller": "Revendeur",
+        "Customer": "Client"
+    }
+
+    dimPromotion["SpanishPromotionName"] = dimPromotion["EnglishPromotionName"].map(translations_es)
+    dimPromotion["FrenchPromotionName"] = dimPromotion["EnglishPromotionName"].map(translations_fr)
+    dimPromotion["DiscountPct"] = specialOffer["DiscountPct"]
+    dimPromotion["EnglishPromotionType"] = specialOffer["Type"]
+    dimPromotion["SpanishPromotionType"] = dimPromotion["EnglishPromotionType"].map(translations_es)
+    dimPromotion["FrenchPromotionType"] = dimPromotion["EnglishPromotionType"].map(translations_fr)
+    dimPromotion["EnglishPromotionCategory"] = specialOffer["Category"]
+    dimPromotion["SpanishPromotionCategory"] = dimPromotion["EnglishPromotionCategory"].map(translations_es)
+    dimPromotion["FrenchPromotionCategory"] = dimPromotion["EnglishPromotionCategory"].map(translations_fr)
+    dimPromotion["StartDate"] = specialOffer["StartDate"]
+    dimPromotion["EndDate"] = specialOffer["EndDate"]
+    dimPromotion["MinQty"] = specialOffer["MinQty"]
+    dimPromotion["MaxQty"] = specialOffer["MaxQty"]
+
     return dimPromotion
 
 #Atributos: ResellerKey, GeographyKey, ResellerAlternateKey, Phone
@@ -328,25 +533,54 @@ def transformDimReseller(tablas):
     return dimReseller
 
 #Atributos: SalesReasonKey, SalesReasonAlternateKey, SalesReasonName, SalesReasonReasonType
-def transformDimSalesReason(tablas):
-    dimSalesReason = pd.DataFrame()
+def  transformDimSalesReason(SalesReason):
+    dimSalesReason = pd.DataFrame(columns=[
+        "SalesReasonKey", "SalesReasonAlternateKey", "SalesReasonName", "SalesReasonType"
+    ])
+
+    dimSalesReason["SalesReasonKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonAlternateKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonName"] = SalesReason["Name"]
+    dimSalesReason["SalesReasonType"] = SalesReason["ReasonType"]
+
     return dimSalesReason
+   
 
 #Atributos: SalesTerritoryKey, SalesTerritoryAlternateKey, SalesTerritoryRegion, SalesTerritoryCountry
 # SalesTerritoryGroup, SalesTerritoryImage
-def transformDimSalesTerritory(tablas):
-    dimSalesTerritory = pd.DataFrame()
+def transformDimSalesTerritory(SalesTerritory):
+    dimSalesTerritory = pd.DataFrame(columns=[
+        "SalesTerritoryKey", "SalesTerritoryAlternateKey", "SalesTerritoryRegion", "SalesTerritoryCountry", "SalesTerritoryGroup"
+    ])
+
+    dimSalesTerritory["SalesTerritoryKey"] = SalesTerritory["TerritoryID"]
+    dimSalesTerritory["SalesTerritoryRegion"] = SalesTerritory["Name"]
+    dimSalesTerritory["SalesTerritoryCountry"] = SalesTerritory["CountryRegionCode"]
+    dimSalesTerritory["SalesTerritoryGroup"] = SalesTerritory["Group"]
+
+    dimSalesTerritory.loc[len(dimSalesTerritory)] = [
+        11,            # SalesTerritoryKey
+        0,          # SalesTerritoryAlternateKey
+        "NA",       # SalesTerritoryRegion
+        "NA",         # SalesTerritoryCountry
+        "NA"        # SalesTerritoryGroup
+    ]
+
+
     return dimSalesTerritory
-
-#Atributos: ProductKey, CultureName, ProductDescription
-def transformFactAdditionalInternationalProductDescription(tablas):
-    factAdditionalInternationalProductDescription = pd.DataFrame()
-    return factAdditionalInternationalProductDescription
-
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
 # Date
-def transformFactCurrencyRate(tablas):
-    factCurrencyRate = pd.DataFrame()
+def transformFactCurrencyRate(sales):
+    factCurrencyRate = sales["CurrencyRate"].drop(columns=[
+      'FromCurrencyCode', 'CurrencyRateID', 'ModifiedDate'
+    ])
+    
+    factCurrencyRate["DateKey"] = factCurrencyRate["CurrencyRateDate"].dt.strftime("%Y%m%d")
+    
+    factCurrencyRate.rename(columns={
+      'CurrencyRateDate' : 'Date'
+    })
+    
     return factCurrencyRate
 
 #Atributos: ProductKey, OrderDateKey, DueDateKey, ShipDateKey
@@ -356,13 +590,84 @@ def transformFactCurrencyRate(tablas):
 # ProductStandardCost, TotalProductCost, SalesAmount, TaxAmt
 # Freight, CarrierTrackingNumber, CustomerPONumber, OrderDate
 # DueDate, ShipDate
-def transformFactInternetSales(tablas):
-    factInternetSales = pd.DataFrame()
-    return factInternetSales
+def transformFactInternetSales (product, salesOrderDetail, salesOrderHeader):
+  factInternetSales = pd.DataFrame(columns=[
+    "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CurrencyKey",
+    "SalesOrderLineNumber", "RevisionNumber", 
+    "CustomerPONumber"
+  ]) 
+
+  factInternetSales["ProductKey"] = product["ProductID"]
+
+  factInternetSales = factInternetSales.merge(
+        salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", "OrderQty", "UnitPrice", "UnitPriceDiscount", "LineTotal","CarrierTrackingNumber"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+  ).rename(columns={"SalesOrderID": "SalesOrderNumber", "SpecialOfferID": "PromotionKey", "OrderQty": "OrderQuantity", 
+                    "UnitPriceDiscount": "UnitPriceDiscountPct", "LineTotal": "SalesAmount"}) \
+   .drop(columns=["ProductID"]) #No estoy segura si LineTotal es SalesAmount ni de UnitPriceDiscountPct (En el factInternetSales no hay ninguna sale con descuento ??)
+
+  factInternetSales["SalesOrderNumber"] = 'SO' + factInternetSales["SalesOrderNumber"].astype(str)
+
+  factInternetSales = factInternetSales.merge(
+        salesOrderDetail[["SalesOrderID", "ProductID"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).merge(
+        salesOrderHeader[["SalesOrderID","OrderDate", "DueDate", "ShipDate", "CustomerID", "TerritoryID", "TaxAmt", "Freight"]],
+        on="SalesOrderID",
+        how="left"
+    ).rename(columns={"CustomerID": "CustomerKey", "TerritoryID": "SalesTerritoryKey"}) \
+     .drop(columns=["ProductID", "DepartmentID", "SalesOrderID"])
+  
+  factInternetSales = factInternetSales.merge(
+        product[["ProductID", "StandardCost"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).rename(columns={"StandardCost": "ProductStandardCost"}) \
+     .drop(columns=["ProductID"])
+  
+
+  
+  # No estoy segura de esto
+  factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
+  factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
+  factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
+  
+  # Todos los "CustomerPONumber" son NULL en factInternetSales
+  # RevisionNumber siempre es 1
+
+  """column_order = [ "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey","PromotionKey", "CurrencyKey",
+    "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
+    "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
+    "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "CustomerPONumber", "OrderDate", "DueDate", "ShipDate" ]"""
+  
+  return factInternetSales
+
+
 
 #Atributos: SalesOrderNumber, SalesOrderLineNumber, SalesReasonKey
-def transformFactInternetSalesReason(tablas):
-    factInternetSalesReason = pd.DataFrame()
+def transformFactInternetSalesReason(sales):
+    factInternetSalesReason = sales["SalesOrderHeaderSalesReason"].drop(columns=['ModifiedDate'])
+    factInternetSalesReason = factInternetSalesReason.rename(columns={'SalesReasonID' : 'SalesReasonKey'})
+
+    orderDetails  = sales["SalesOrderDetail"].drop(columns=[
+        'ModifiedDate', 'rowguid', 'UnitPriceDiscount', 'UnitPrice', 'CarrierTrackingNumber',
+        'SpecialOfferID', 'OrderQty', 'ProductID', 'LineTotal'
+    ])
+    orderDetails = orderDetails.sort_values(by=['SalesOrderID', 'SalesOrderDetailID'])
+    orderDetails["SalesOrderLineNumber"] =  (
+        orderDetails.groupby('SalesOrderID').cumcount() + 1
+    )
+
+    factInternetSalesReason = factInternetSalesReason.merge(orderDetails, on='SalesOrderID', how='inner')
+    factInternetSalesReason = factInternetSalesReason.drop(columns=['SalesOrderDetailID'])
+    factInternetSalesReason["SalesOrderID"] = 'SO' + factInternetSalesReason["SalesOrderID"].astype(str)
+    factInternetSalesReason = factInternetSalesReason.rename(columns={'SalesOrderID':'SalesOrderNumber'})
+
     return factInternetSalesReason
 
 #Atributos: ProductKey, OrderDateKey, DueDateKey
@@ -378,6 +683,42 @@ def transformFactResellerSales(tablas):
 
 #Atributos: AverageRate, CurrencyID, CurrencyDate, EndOfDayRate
 # CurrencyKey, DateKey
-def transformNewFactCurrencyRate(tablas):
-    newFactCurrencyRate = pd.DataFrame()
+def transformNewFactCurrencyRate(sales):
+    newFactCurrencyRate = sales["CurrencyRate"].drop(columns=[
+        'CurrencyRateID', 'FromCurrencyCode', 'ModifiedDate'
+    ])
+
+    newFactCurrencyRate = newFactCurrencyRate.rename(columns={
+        'CurrencyRateDate' : 'CurrencyDate', 
+        'ToCurrencyCode' : 'CurrencyID'
+    })
+    
+    return newFactCurrencyRate
+
+def fkDimCustomer(dimCustomer, dimGeography):
+    llave = dimGeography[["GeographyKey", "PostalCode"]].copy()
+    dimCustomer = dimCustomer.merge(llave, on='PostalCode', how='left')
+    dimCustomer = dimCustomer.drop(columns=['PostalCode'])
+    return dimCustomer
+
+def fkFactCurrencyRate(factCurrencyRate, dimCurrency):
+    currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
+    factCurrencyRate = factCurrencyRate.merge(currency, left_on='ToCurrencyCode', right_on='CurrencyAlternateKey', how='left')
+    factCurrencyRate = factCurrencyRate.drop(columns=['ToCurrencyCode', 'CurrencyAlternateKey'])
+    
+    return factCurrencyRate
+
+def fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate):
+    #Añadir CurrencyKey
+    currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
+    newFactCurrencyRate = newFactCurrencyRate.merge(currency, left_on='CurrencyID', right_on='CurrencyAlternateKey', how='left')
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyID', 'CurrencyAlternateKey'])
+    
+    #Añadir DateKey
+    date = dimDate[["DateKey", "FullDateAlternateKey"]].copy()
+    newFactCurrencyRate['CurrencyDate'] = pd.to_datetime(newFactCurrencyRate['CurrencyDate'])
+    date['FullDateAlternateKey'] = pd.to_datetime(date['FullDateAlternateKey'])
+    newFactCurrencyRate = newFactCurrencyRate.merge(date, left_on='CurrencyDate', right_on='FullDateAlternateKey', how='left')
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyDate', 'FullDateAlternateKey'])
+    
     return newFactCurrencyRate

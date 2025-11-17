@@ -98,6 +98,16 @@ def new_data(conne: Engine) -> bool:
             print('[*]', e)
             return False
 
+def generate_unique_ip(keys, base_ip="198.51"):
+    ips = []
+    for k in keys:
+        # Cada "bloque" de 253 IPs usa el siguiente tercer octeto
+        block = (k - 1) // 253
+        last_octet = ((k - 1) % 253) + 2
+        third_octet = 100 + block  # puedes ajustar 100 a cualquier valor inicial
+        ip = f"{base_ip}.{third_octet}.{last_octet}"
+        ips.append(ip)
+    return ips
 
 def push_dimensions(co_sa, etl_conn):
     dim_ips = extract.extract_ips(co_sa)
