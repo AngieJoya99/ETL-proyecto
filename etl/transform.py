@@ -281,8 +281,44 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
 #Atributos: GeographyKey, City, StateProvinceCode, StateProvinceName
 # CountryRegionCode, EnglishCountryRegionName, SpanishCountryRegionName, FrenchCountryRegionName
 # PostalCode, SalesTerritoryKey, IpAddressLocator
-def transformDimGeography(tablas):
-    dimGeography = pd.DataFrame()
+def transformDimGeography(sales, person):
+    dimGeography = sales["SalesTerritory"].drop(columns=[
+        'SalesYTD', 'CostYTD', 'CostLastYear', 'rowguid', 'ModifiedDate', 'SalesLastYear',
+        'Group', 'Name'
+    ]).drop_duplicates()
+    
+    countryNameMap = {
+        "US" : "United States", "CA" : "Canada", "FR" : "France", "DE" : "Germany",
+        "AU" : "Australia", "GB" : "United Kingdom"
+    }
+    
+    countryMap = {"Australia": {"Spanish": "Australia", "French": "Australie"},
+    "Canada": {"Spanish": "Canada", "French": "Canada"},
+    "Germany": {"Spanish": "Alemania", "French": "Allemagne"},
+    "France": {"Spanish": "Francia", "French": "France"},
+    "United Kingdom": {"Spanish": "Reino Unido", "French": "Royaume-Uni"},
+    "United States": {"Spanish": "Estados Unidos", "French": "États-Unis"}}
+    
+    dimGeography["EnglishCountryRegionName"] = dimGeography["CountryRegionCode"].map(lambda x: countryNameMap[x])
+    dimGeography["SpanishCountryRegionName"] = dimGeography["EnglishCountryRegionName"].map(lambda x: countryMap[x]["Spanish"])
+    dimGeography["FrenchCountryRegionName"] = dimGeography["EnglishCountryRegionName"].map(lambda x: countryMap[x]["French"])
+    
+    province = person["StateProvince"].drop(columns=[
+        'CountryRegionCode', 'IsOnlyStateProvinceFlag', 'rowguid', 'ModifiedDate'
+    ]).drop_duplicates()
+    
+    dimGeography = dimGeography.merge(province, on='TerritoryID', how='right')
+    dimGeography = dimGeography.rename(columns={'Name':'StateProvinceName'})
+    
+    city = person["Address"].drop(columns=[
+        'AddressID', 'AddressLine1', 'AddressLine2', 'rowguid', 'ModifiedDate'
+    ]).drop_duplicates()
+    
+    dimGeography = dimGeography.merge(city, on='StateProvinceID', how='right')
+    dimGeography = dimGeography.rename(columns={'TerritoryID':'SalesTerritoryKey'})
+    dimGeography["GeographyKey"] = range(1, len(dimGeography) + 1)
+    dimGeography["IpAddressLocator"] = utils_etl.generate_unique_ip(dimGeography["GeographyKey"])
+    dimGeography = dimGeography.drop(columns=['StateProvinceID'])
     return dimGeography
 
 #Atributos: ProductKey, ProductAlternateKey, ProductSubcategoryKey, WeightUnitMeasureCode
@@ -337,11 +373,6 @@ def transformDimSalesReason(tablas):
 def transformDimSalesTerritory(tablas):
     dimSalesTerritory = pd.DataFrame()
     return dimSalesTerritory
-
-#Atributos: ProductKey, CultureName, ProductDescription
-def transformFactAdditionalInternationalProductDescription(tablas):
-    factAdditionalInternationalProductDescription = pd.DataFrame()
-    return factAdditionalInternationalProductDescription
 
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
 # Date
