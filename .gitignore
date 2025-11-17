@@ -8,14 +8,8 @@ test*
 *.sql
 *.pyc
 .vscode
-
-# Entornos virtuales de Python
+# Entornos virtuales
 my_env/
 venv/
 env/
-ENV/
-
-# Cache de Python
 __pycache__/
-*.py[cod]
-*$py.class
