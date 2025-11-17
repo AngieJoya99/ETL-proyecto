@@ -1,6 +1,34 @@
 import pandas as pd
 import utils_etl
 from sqlalchemy.engine import Engine
+import pandas as pd
+from sqlalchemy import create_engine, inspect
+import yaml
+import os
+
+#Se leen así: humanResources["Shift"]
+def cargaSegura(engine, schema, table):
+    inspector = inspect(engine)
+
+    # Obtener columnas
+    columnas = [col["name"] for col in inspector.get_columns(table, schema=schema)]
+    columnas_problematicas = []
+
+    # Intentar cargar tabla completa
+    try:
+        return pd.read_sql_table(table_name=table, con=engine, schema=schema)
+    except Exception:
+        pass
+
+    # Detectar columnas problemáticas
+    for col in columnas:
+        try:
+            pd.read_sql_query(
+                f'SELECT TOP 10 "{col}" FROM "{schema}"."{table}"',
+                con=engine
+            )
+        except Exception:
+            columnas_problematicas.append(col)
 
 #Se leen así: humanResources["Shift"]
 def extractHumanResources(conection: Engine):
@@ -70,6 +98,28 @@ def extractSales(conection: Engine):
         
     return sales
 
+    # Si no hay columnas válidas
+    if not columnas_ok:
+        print(f"⚠ La tabla {schema}.{table} no tiene columnas convertibles. Retornando dataframe vacío.")
+        return pd.DataFrame()
 
+    # Cargar solo columnas válidas
+    query = (
+        f'SELECT {", ".join([f"""\"{c}\"""" for c in columnas_ok])} '
+        f'FROM "{schema}"."{table}"'
+    )
 
+def extractEmployeeHierarchy(conection: Engine):
+    query = """
+    SELECT 
+        e.BusinessEntityID AS EmployeeID,
+        e.NationalIDNumber AS EmployeeNationalIDAlternateKey,
+        e.OrganizationNode.ToString() AS OrgNode,
+        m.BusinessEntityID AS ParentEmployeeKey,
+        m.NationalIDNumber AS ParentEmployeeNationalIDAlternateKey
+    FROM HumanResources.Employee e
+    LEFT JOIN HumanResources.Employee m
+        ON e.OrganizationNode.GetAncestor(1) = m.OrganizationNode;
+    """
+    return pd.read_sql_query(query, con=conection)
     
