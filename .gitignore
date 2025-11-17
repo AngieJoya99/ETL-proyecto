@@ -8,3 +8,8 @@ test*
 *.sql
 *.pyc
 .vscode
+# Entornos virtuales
+my_env/
+venv/
+env/
+__pycache__/
