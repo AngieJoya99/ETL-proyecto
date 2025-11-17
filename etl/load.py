@@ -8,8 +8,9 @@ from sqlalchemy.dialects.postgresql import insert
 def loadDimCurrency(df, olap: Engine):
     df.to_sql('DimCurrency', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def loadDimCustomer(df, olap: Engine):
-    df.to_sql('DimCustomer', olap, if_exists='append', index_label='nombreColumnaLlave')
+def loadDimCustomer(customer, geography, olap: Engine):
+    #Llave foránea GeographyKey de DimGeography
+    customer.to_sql('DimCustomer', olap, if_exists='append', index_label='nombreColumnaLlave')
 
 def loadDimDate(df, olap: Engine):
     df.to_sql('DimDate', olap, if_exists='append', index_label='nombreColumnaLlave')
@@ -44,8 +45,9 @@ def loadDimSalesTerritory(df, olap: Engine):
 def loadFactAdditionalInternationalProductDescription(df, olap: Engine):
     df.to_sql('FactAdditionalInternationalProductDescription', olap, if_exists='append', index_label='nombreColumnaLlave')
 
-def loadFactCurrencyRate(df, olap: Engine):
-    df.to_sql('FactCurrencyRate', olap, if_exists='append', index_label='nombreColumnaLlave')
+def loadFactCurrencyRate(currencyRate, currency, olap: Engine):
+    #Llave foránea CurrencyKey de DimCurrency
+    currencyRate.to_sql('FactCurrencyRate', olap, if_exists='append', index_label='nombreColumnaLlave')
 
 def loadFactInternetSales(df, olap: Engine):
     df.to_sql('FactInternetSales', olap, if_exists='append', index_label='nombreColumnaLlave')
@@ -57,6 +59,8 @@ def loadFactResellerSales(df, olap: Engine):
     df.to_sql('FactResellerSales', olap, if_exists='append', index_label='nombreColumnaLlave')
 
 def loadNewFactCurrencyRate(df, olap: Engine):
+    #Llave foránea CurrencyKey de DimCurrency
+    #Llave foránea DateKey de DimDate
     df.to_sql('NewFactCurrencyRate', olap, if_exists='append', index_label='nombreColumnaLlave')
 
 def load(table: DataFrame, etl_conn: Engine, tname, replace: bool = False):
