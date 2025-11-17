@@ -294,9 +294,134 @@ def transformDimGeography(tablas):
 # EnglishDescription, FrenchDescription, ChineseDescription, ArabicDescription
 # HebrewDescription, ThaiDescription, GermanDescription, JapaneseDescription
 # TurkishDescription, StartDate, EndDate, Status
-def transformDimProduct(tablas):
-    dimProduct = pd.DataFrame()
+
+
+""" 
+Funciones para pasar los parametros:
+
+1. Primero obtener de extract las siguientes consultas:
+
+description = extracProductDescription(oltp)
+dealerPrices = extractDealerPrices(oltp) 
+
+2. Segundo, realizar las traducciones con las funciones de Utils:
+description_translated = translate_missing_fast(description)
+
+A la función name_translated se le pasa una copia del dataframe de productos:
+
+df = production["Product"].copy()
+name_translated = translate_missing_fast_name(df)
+
+
+3. Luego, generar la tabla de size range con la función en Utils:
+size_range_df = generar_size_range_tabla(production["Product"])
+
+4. Se llama a la función transformDimProduct de la siguiente manera:
+transformDimProduct(production["Product"], description_translated, name_translated, production["ProductModel"], 
+                production["ProductListPriceHistory"], dealerPrices= dealerPrices, sizeRange= size_range_df).head()
+
+"""
+
+def transformDimProduct(product, description, name_translated, ProductModel, ProductListPriceHistory, dealerPrices, sizeRange):
+    # Crear DataFrame vacío con columnas correctas
+    dimProduct = pd.DataFrame(columns=[
+        "ProductKey", "ProductAlternateKey", "ProductSubcategoryKey", "WeightUnitMeasureCode", 
+        "SizeUnitMeasureCode", "EnglishProductName", "SpanishProductName", "FrenchProductName",
+        "StandardCost", "FinishedGoodsFlag", "Color", "SafetyStockLevel", "ReorderPoint",
+        "ListPrice", "Size", "Weight", "DaysToManufacture", "ProductLine", "DealerPrice",
+        "Class", "Style", "EnglishDescription", "FrenchDescription", "ChineseDescription",
+        "ArabicDescription", "HebrewDescription", "ThaiDescription", "GermanDescription",
+        "JapaneseDescription", "TurkishDescription",  "Status",
+        "ModelName"
+    ])
+    
+
+    # Asignar valores directos
+    dimProduct["ProductKey"] = product["ProductID"]
+    dimProduct["ProductAlternateKey"] = product["ProductNumber"]
+    dimProduct["ProductSubcategoryKey"] = product["ProductSubcategoryID"]
+    dimProduct["WeightUnitMeasureCode"] = product["WeightUnitMeasureCode"]
+    dimProduct["SizeUnitMeasureCode"] = product["SizeUnitMeasureCode"]
+    dimProduct["EnglishProductName"] = product["Name"]
+    dimProduct["StandardCost"] = product["StandardCost"]
+    dimProduct["FinishedGoodsFlag"] = product["FinishedGoodsFlag"].fillna(0).astype(int)
+    dimProduct["Color"] = product["Color"]
+    dimProduct["SafetyStockLevel"] = product["SafetyStockLevel"]
+    dimProduct["ReorderPoint"] = product["ReorderPoint"]
+    dimProduct["ListPrice"] = product["ListPrice"]
+    dimProduct["Size"] = product["Size"]
+    dimProduct["Weight"] = product["Weight"]
+    dimProduct["DaysToManufacture"] = product["DaysToManufacture"]
+    dimProduct["ProductLine"] = product["ProductLine"]
+    dimProduct["Class"] = product["Class"]
+    dimProduct["Style"] = product["Style"]
+    dimProduct["SizeRange"] = dimProduct["ProductKey"].map(
+        sizeRange.set_index("ProductID")["SizeRange"]
+    )
+    
+    dealerPrices_unique = dealerPrices.groupby('ProductID')['DealerPrice'].max().reset_index()
+
+    # Asignarlo a dimProduct usando map
+    dimProduct["DealerPrice"] = dimProduct["ProductKey"].map(
+        dealerPrices_unique.set_index("ProductID")["DealerPrice"]
+    )
+
+    # Mapear nombres traducidos
+    for lang in ["Spanish", "French"]:
+        col = f"{lang}ProductName"
+        dimProduct[col] = dimProduct["ProductKey"].map(
+            name_translated.set_index("ProductID")[col]
+        )
+
+    # Mapear descripciones
+    for lang in ["English", "French", "Chinese", "Arabic", "Hebrew", "Thai", "German", "Japanese", "Turkish"]:
+        col = f"{lang}Description"
+        dimProduct[col] = dimProduct["ProductKey"].map(
+            description.set_index("ProductID")[col]
+        )
+
+    # Merge con ProductModel
+    dimProduct = dimProduct.merge(
+        product[['ProductID', 'ProductModelID']],  
+        left_on='ProductKey', right_on='ProductID', how='left'
+    ).merge(
+        ProductModel[['ProductModelID', 'Name']], 
+        on='ProductModelID', how='left'
+    ).rename(columns={'Name': 'ModelName'}).drop(columns=['ProductID','ProductModelID'])
+    
+    # Tomar la fecha de inicio mínima por ProductID
+    start_dates = ProductListPriceHistory.groupby("ProductID")["StartDate"].min()
+    end_dates = ProductListPriceHistory.groupby("ProductID")["EndDate"].max()
+
+    dimProduct["StartDate"] = dimProduct["ProductKey"].map(start_dates).fillna(np.nan)
+    dimProduct["EndDate"] = dimProduct["ProductKey"].map(end_dates).fillna(np.nan)
+
+
+
+       
+    
+    dimProduct["Status"] = np.where(
+        dimProduct["EndDate"].isna(),
+        "Current",
+        None
+    )
+    
+    column_order = [
+        "ProductKey", "ProductAlternateKey", "ProductSubcategoryKey", "WeightUnitMeasureCode", 
+        "SizeUnitMeasureCode", "EnglishProductName", "SpanishProductName", "FrenchProductName",
+        "StandardCost", "FinishedGoodsFlag", "Color", "SafetyStockLevel", "ReorderPoint",
+        "ListPrice", "Size", "SizeRange","Weight", "DaysToManufacture", "ProductLine", "DealerPrice",
+        "Class", "Style", "ModelName", "EnglishDescription", "FrenchDescription", "ChineseDescription",
+        "ArabicDescription", "HebrewDescription", "ThaiDescription", "GermanDescription",
+        "JapaneseDescription", "TurkishDescription", "StartDate", "EndDate", "Status"
+    ]
+
+    dimProduct = dimProduct[column_order]
+    dimProduct = dimProduct.drop_duplicates(subset=["ProductKey"])
+    
+    
     return dimProduct
+
 
 #Atributos: ProductCategoryKey, ProductCategoryAlternateKey, EnglishProductCategoryName, SpanishProductCategoryName
 # FrenchProductCategoryName

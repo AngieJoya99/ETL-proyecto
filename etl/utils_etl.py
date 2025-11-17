@@ -2,6 +2,10 @@ from sqlalchemy import text, inspect
 import pandas as pd
 from sqlalchemy.engine import Engine
 import xml.etree.ElementTree as ET
+from deep_translator import GoogleTranslator
+import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
+
 
 def cargaSegura(engine, schema, table):
     inspector = inspect(engine)
@@ -126,3 +130,101 @@ def push_dimensions(co_sa, etl_conn):
     load.load(trans_servicio, etl_conn, 'trans_servicio')
     load.load(dim_diag, etl_conn, 'dim_diag')
     load.load(dim_demo, etl_conn, 'dim_demografia')
+    
+    
+#Traducción description y name para dimProductos 
+
+translation_cache = {}
+translation_cache_name = {}
+
+def translate_with_cache(text, target):
+    if pd.isna(text) or text.strip() == "":
+        return None
+    key = (text, target)
+    if key not in translation_cache:
+        translation_cache[key] = GoogleTranslator(source='en', target=target).translate(text)
+    return translation_cache[key]
+
+def translate_row(row):
+    eng = row['EnglishDescription']
+    row['GermanDescription'] = translate_with_cache(eng, 'de') if pd.isna(row['GermanDescription']) else row['GermanDescription']
+    row['JapaneseDescription'] = translate_with_cache(eng, 'ja') if pd.isna(row['JapaneseDescription']) else row['JapaneseDescription']
+    row['TurkishDescription'] = translate_with_cache(eng, 'tr') if pd.isna(row['TurkishDescription']) else row['TurkishDescription']
+    return row
+
+def translate_missing_fast(df, max_workers=5):
+    with ThreadPoolExecutor(max_workers=max_workers) as exe:
+        result = list(exe.map(translate_row, [row for _, row in df.iterrows()]))
+    return pd.DataFrame(result)
+
+def translate_with_cache_name(text, target):
+    if pd.isna(text) or text.strip() == "":
+        return None
+    key = (text, target)
+    if key not in translation_cache_name:
+        translation_cache_name[key] = GoogleTranslator(source='en', target=target).translate(text)
+    return translation_cache_name[key]
+
+def translate_row_name(row):
+    eng = row['Name']
+   
+    row['SpanishProductName'] = translate_with_cache_name(eng, 'es') if pd.isna(row.get('SpanishProductName')) else row['SpanishProductName']
+    row['FrenchProductName'] = translate_with_cache_name(eng, 'fr') if pd.isna(row.get('FrenchProductName')) else row['FrenchProductName']
+    return row
+
+def translate_missing_fast_name(df, max_workers=5):
+    df = df.copy()
+    
+    for col in ['SpanishProductName', 'FrenchProductName']:
+        if col not in df.columns:
+            df[col] = None
+    
+    rows = df.to_dict(orient='records')
+    with ThreadPoolExecutor(max_workers=max_workers) as exe:
+        result = list(exe.map(translate_row_name, rows))
+    return pd.DataFrame(result)
+
+
+#Obtener size range para dimProductos
+
+# Función para un solo valor de Size
+def size_range_calc(size):
+    if pd.isna(size) or str(size).upper() == 'NA':
+        return 'NA'
+    elif str(size).isalpha():  # letra
+        return size
+    else:
+        try:
+            size = int(size)
+            if 38 <= size <= 40:
+                return '38-40 CM'
+            elif 42 <= size <= 46:
+                return '42-46 CM'
+            elif 48 <= size <= 52:
+                return '48-52 CM'
+            elif 54 <= size <= 58:
+                return '54-58 CM'
+            elif 60 <= size <= 62:
+                return '60-62 CM'
+            else:
+                return str(size)
+        except ValueError:
+            return 'NA'
+
+# Función para generar tabla con ProductID, Size y SizeRange
+def generar_size_range_tabla(product):
+    df = product.copy()
+    df['SizeRange'] = df['Size'].apply(size_range_calc)
+    
+    return df[['ProductID','Size','SizeRange']]
+
+
+
+
+
+
+
+
+
+
+
