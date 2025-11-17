@@ -378,10 +378,17 @@ def  transformDimSalesReason(SalesReason):
 
 #Atributos: SalesTerritoryKey, SalesTerritoryAlternateKey, SalesTerritoryRegion, SalesTerritoryCountry
 # SalesTerritoryGroup, SalesTerritoryImage
-def transformDimSalesTerritory(tablas):
-    dimSalesTerritory = pd.DataFrame()
-    return dimSalesTerritory
+def  transformDimSalesTerritory(SalesTerritory):
+    dimSalesTerritory = pd.DataFrame(columns=[
+        "SalesTerritoryKey", "SalesTerritoryAlternateKey", "SalesTerritoryRegion", "SalesTerritoryCountry", "SalesTerritoryGroup"
+    ])
 
+    dimSalesTerritory["SalesTerritoryKey"] = SalesTerritory["TerritoryID"]
+    dimSalesTerritory["SalesTerritoryRegion"] = SalesTerritory["Name"]
+    dimSalesTerritory["SalesTerritoryCountry"] = SalesTerritory["CountryRegionCode"]
+    dimSalesTerritory["SalesTerritoryGroup"] = SalesTerritory["Group"]
+
+    return dimSalesTerritory
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
 # Date
 def transformFactCurrencyRate(sales):
