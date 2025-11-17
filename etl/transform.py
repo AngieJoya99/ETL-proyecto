@@ -10,6 +10,7 @@ from mlxtend.preprocessing import TransactionEncoder
 from pandas import DataFrame
 import utils_etl
 import utils_etl
+import utils_etl
 
 #Las dimensiones a crear son: DimCurrency, DimCustomer, DimDate, DimEmployee, DimGeography, DimProduct,
 #DimProductCategory, DimProductSubcategory, DimPromotion, DimReseller, DimSalesReason, DimSalesTerritory
@@ -576,7 +577,7 @@ def transformFactCurrencyRate(sales):
     
     factCurrencyRate["DateKey"] = factCurrencyRate["CurrencyRateDate"].dt.strftime("%Y%m%d")
     
-    factCurrencyRate = factCurrencyRate.rename(columns={
+    factCurrencyRate.rename(columns={
       'CurrencyRateDate' : 'Date'
     })
     
