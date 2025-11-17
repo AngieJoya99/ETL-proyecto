@@ -589,9 +589,64 @@ def transformFactCurrencyRate(sales):
 # ProductStandardCost, TotalProductCost, SalesAmount, TaxAmt
 # Freight, CarrierTrackingNumber, CustomerPONumber, OrderDate
 # DueDate, ShipDate
-def transformFactInternetSales(tablas):
-    factInternetSales = pd.DataFrame()
-    return factInternetSales
+def transformFactInternetSales (product, salesOrderDetail, salesOrderHeader):
+  factInternetSales = pd.DataFrame(columns=[
+    "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CurrencyKey",
+    "SalesOrderLineNumber", "RevisionNumber", 
+    "CustomerPONumber"
+  ]) 
+
+  factInternetSales["ProductKey"] = product["ProductID"]
+
+  factInternetSales = factInternetSales.merge(
+        salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", "OrderQty", "UnitPrice", "UnitPriceDiscount", "LineTotal","CarrierTrackingNumber"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+  ).rename(columns={"SalesOrderID": "SalesOrderNumber", "SpecialOfferID": "PromotionKey", "OrderQty": "OrderQuantity", 
+                    "UnitPriceDiscount": "UnitPriceDiscountPct", "LineTotal": "SalesAmount"}) \
+   .drop(columns=["ProductID"]) #No estoy segura si LineTotal es SalesAmount ni de UnitPriceDiscountPct (En el factInternetSales no hay ninguna sale con descuento ??)
+
+  factInternetSales["SalesOrderNumber"] = 'SO' + factInternetSales["SalesOrderNumber"].astype(str)
+
+  factInternetSales = factInternetSales.merge(
+        salesOrderDetail[["SalesOrderID", "ProductID"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).merge(
+        salesOrderHeader[["SalesOrderID","OrderDate", "DueDate", "ShipDate", "CustomerID", "TerritoryID", "TaxAmt", "Freight"]],
+        on="SalesOrderID",
+        how="left"
+    ).rename(columns={"CustomerID": "CustomerKey", "TerritoryID": "SalesTerritoryKey"}) \
+     .drop(columns=["ProductID", "DepartmentID", "SalesOrderID"])
+  
+  factInternetSales = factInternetSales.merge(
+        product[["ProductID", "StandardCost"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).rename(columns={"StandardCost": "ProductStandardCost"}) \
+     .drop(columns=["ProductID"])
+  
+
+  
+  # No estoy segura de esto
+  factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
+  factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
+  factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
+  
+  # Todos los "CustomerPONumber" son NULL en factInternetSales
+  # RevisionNumber siempre es 1
+
+  """column_order = [ "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey","PromotionKey", "CurrencyKey",
+    "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
+    "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
+    "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "CustomerPONumber", "OrderDate", "DueDate", "ShipDate" ]"""
+  
+  return factInternetSales
+
+
 
 #Atributos: SalesOrderNumber, SalesOrderLineNumber, SalesReasonKey
 def transformFactInternetSalesReason(sales):
