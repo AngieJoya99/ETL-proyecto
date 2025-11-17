@@ -9,6 +9,7 @@ from mlxtend.frequent_patterns import apriori
 from mlxtend.preprocessing import TransactionEncoder
 from pandas import DataFrame
 import utils_etl
+import utils_etl
 
 #Las dimensiones a crear son: DimCurrency, DimCustomer, DimDate, DimEmployee, DimGeography, DimProduct,
 #DimProductCategory, DimProductSubcategory, DimPromotion, DimReseller, DimSalesReason, DimSalesTerritory
