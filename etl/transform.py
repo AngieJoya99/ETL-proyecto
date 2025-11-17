@@ -300,8 +300,44 @@ def transformDimProduct(tablas):
 
 #Atributos: ProductCategoryKey, ProductCategoryAlternateKey, EnglishProductCategoryName, SpanishProductCategoryName
 # FrenchProductCategoryName
-def transformDimProductCategory(tablas):
-    dimProductCategory = pd.DataFrame()
+
+def transformDimProductCategory(productCategory):
+    dimProductCategory = pd.DataFrame(columns=[ 
+        "ProductCategoryKey", "ProductCategoryAlternateKey",
+        "EnglishProductCategoryName", "SpanishProductCategoryName", "FrenchProductCategoryName"
+    ])
+
+    translationsProductCategory = {
+    "Bikes": {
+        "es": "Bicicletas",
+        "fr": "Vélos"
+    },
+    "Components": {
+        "es": "Componentes",
+        "fr": "Composants"
+    },
+    "Clothing": {
+        "es": "Ropa",
+        "fr": "Vêtements"
+    },
+    "Accessories": {
+        "es": "Accesorios",
+        "fr": "Accessoires"
+    }
+}
+
+    dimProductCategory["ProductCategoryKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["ProductCategoryAlternateKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["EnglishProductCategoryName"] = productCategory["Name"]
+    dimProductCategory["SpanishProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["es"])
+
+
+    dimProductCategory["FrenchProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["fr"])
+
     return dimProductCategory
 
 #Atributos: ProductSubcategoryKey, ProductSubcategoryAlternateKey, EnglishProductSubcategoryName, SpanishProductSubcategoryName
