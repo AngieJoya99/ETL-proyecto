@@ -163,8 +163,119 @@ def transformDimDate():
 # PayFrequency, BaseRate, VacationHours, SickLeaveHours
 # CurrentFlag, SalesPersonFlag, DepartmentName, StartDate
 # EndDate, Status, EmployeePhoto
-def transformDimEmployee(tablas):
-    dimEmployee = pd.DataFrame()
+def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory, department, salesPerson, person, emailAddress, personPhone, hierarchy):
+    dimEmployee = pd.DataFrame(columns=[
+        "EmployeeKey", "EmployeeNationalIDAlternateKey", "Title", "HireDate", "BirthDate", "LoginID",
+        "MaritalStatus", "SalariedFlag", "Gender",
+        "VacationHours", "SickLeaveHours", "CurrentFlag", "SalesPersonFlag", "Status"
+    ])
+
+    dimEmployee["EmployeeKey"] = employee["BusinessEntityID"]
+    dimEmployee["EmployeeNationalIDAlternateKey"] = employee["NationalIDNumber"]
+    dimEmployee["Title"] = employee["JobTitle"]
+    dimEmployee["HireDate"] = employee["HireDate"]
+    dimEmployee["BirthDate"] = employee["BirthDate"]
+    dimEmployee["LoginID"] = employee["LoginID"]
+    dimEmployee["MaritalStatus"] = employee["MaritalStatus"]
+    dimEmployee["SalariedFlag"] = employee["SalariedFlag"].astype(int)
+    dimEmployee["Gender"] = employee["Gender"]
+    dimEmployee["VacationHours"] = employee["VacationHours"]
+    dimEmployee["SickLeaveHours"] = employee["SickLeaveHours"]
+    dimEmployee["CurrentFlag"] = employee["CurrentFlag"].astype(int)
+
+    dimEmployee = dimEmployee.merge(
+        hierarchy[["EmployeeID", "ParentEmployeeKey", "ParentEmployeeNationalIDAlternateKey"]],
+        left_on="EmployeeKey",
+        right_on="EmployeeID",
+        how="left"
+    ).drop(columns=["EmployeeID"])
+
+    dimEmployee = dimEmployee.merge(
+        salesPerson[["BusinessEntityID", "TerritoryID"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]) \
+     .rename(columns={"TerritoryID": "SalesTerritoryKey"})
+    
+    dimEmployee["SalesTerritoryKey"] = dimEmployee["SalesTerritoryKey"].fillna(11)
+
+    dimEmployee = dimEmployee.merge(
+        person[["BusinessEntityID", "FirstName", "LastName", "MiddleName", "NameStyle"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    dimEmployee["NameStyle"] = dimEmployee["NameStyle"].astype(int)
+
+    dimEmployee = dimEmployee.merge(
+        emailAddress[["BusinessEntityID", "EmailAddress"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    dimEmployee = dimEmployee.merge( 
+        personPhone[["BusinessEntityID", "PhoneNumber"]], 
+        left_on="EmployeeKey", 
+        right_on="BusinessEntityID", 
+        how="left" 
+    ).drop(columns=["BusinessEntityID"]) \
+     .rename(columns={"PhoneNumber": "Phone"})
+    
+    dimEmployee = dimEmployee.merge(
+        employeePayHistory[["BusinessEntityID", "PayFrequency", "Rate"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]) \
+     .rename(columns={"Rate": "BaseRate"})
+
+    
+    dimEmployee = dimEmployee.merge(
+        employeeDepartmentHistory[["BusinessEntityID", "DepartmentID"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).merge(
+        department[["DepartmentID", "Name"]],
+        on="DepartmentID",
+        how="left"
+    ).rename(columns={"Name": "DepartmentName"}).drop(columns=["BusinessEntityID", "DepartmentID"])
+
+
+    dimEmployee["SalesPersonFlag"] = np.where(
+        (dimEmployee["DepartmentName"].str.contains("Sales", na=False)) &
+        (dimEmployee["Title"] != "Vice President of Engineering"),
+        1,
+        0
+    )
+
+    dimEmployee = dimEmployee.merge(
+        employeeDepartmentHistory[["BusinessEntityID", "StartDate", "EndDate"]],
+        left_on="EmployeeKey",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    dimEmployee["Status"] = np.where(
+        dimEmployee["EndDate"].isna(),
+        "Current",
+        None
+    )
+
+    column_order = [
+        "EmployeeKey", "ParentEmployeeKey", "EmployeeNationalIDAlternateKey", "ParentEmployeeNationalIDAlternateKey", 
+        "SalesTerritoryKey", "FirstName", "LastName", "MiddleName", "NameStyle", "Title", "HireDate", "BirthDate", 
+        "LoginID", "EmailAddress", "Phone", "MaritalStatus", "SalariedFlag", "Gender", "PayFrequency", "BaseRate", 
+        "VacationHours", "SickLeaveHours", "CurrentFlag", "SalesPersonFlag", "DepartmentName", "StartDate", "EndDate","Status"
+    ]
+
+    dimEmployee = dimEmployee[column_order]
+    dimEmployee = dimEmployee.drop_duplicates(subset=["EmployeeKey"])
+
+    
     return dimEmployee
 
 #Atributos: GeographyKey, City, StateProvinceCode, StateProvinceName

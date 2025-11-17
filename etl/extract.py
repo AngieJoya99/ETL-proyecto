@@ -109,4 +109,17 @@ def extractSales(conection: Engine):
         f'FROM "{schema}"."{table}"'
     )
 
+def extractEmployeeHierarchy(conection: Engine):
+    query = """
+    SELECT 
+        e.BusinessEntityID AS EmployeeID,
+        e.NationalIDNumber AS EmployeeNationalIDAlternateKey,
+        e.OrganizationNode.ToString() AS OrgNode,
+        m.BusinessEntityID AS ParentEmployeeKey,
+        m.NationalIDNumber AS ParentEmployeeNationalIDAlternateKey
+    FROM HumanResources.Employee e
+    LEFT JOIN HumanResources.Employee m
+        ON e.OrganizationNode.GetAncestor(1) = m.OrganizationNode;
+    """
+    return pd.read_sql_query(query, con=conection)
     
