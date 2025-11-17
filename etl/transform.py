@@ -335,14 +335,107 @@ def transformDimProduct(tablas):
 
 #Atributos: ProductCategoryKey, ProductCategoryAlternateKey, EnglishProductCategoryName, SpanishProductCategoryName
 # FrenchProductCategoryName
-def transformDimProductCategory(tablas):
-    dimProductCategory = pd.DataFrame()
+
+def transformDimProductCategory(productCategory):
+    dimProductCategory = pd.DataFrame(columns=[ 
+        "ProductCategoryKey", "ProductCategoryAlternateKey",
+        "EnglishProductCategoryName", "SpanishProductCategoryName", "FrenchProductCategoryName"
+    ])
+
+    translationsProductCategory = {
+    "Bikes": {
+        "es": "Bicicletas",
+        "fr": "Vélos"
+    },
+    "Components": {
+        "es": "Componentes",
+        "fr": "Composants"
+    },
+    "Clothing": {
+        "es": "Ropa",
+        "fr": "Vêtements"
+    },
+    "Accessories": {
+        "es": "Accesorios",
+        "fr": "Accessoires"
+    }
+}
+
+    dimProductCategory["ProductCategoryKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["ProductCategoryAlternateKey"] = productCategory["ProductCategoryID"]
+    dimProductCategory["EnglishProductCategoryName"] = productCategory["Name"]
+    dimProductCategory["SpanishProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["es"])
+
+
+    dimProductCategory["FrenchProductCategoryName"] = dimProductCategory[
+        "EnglishProductCategoryName"
+    ].apply(lambda x: translationsProductCategory[x]["fr"])
+
     return dimProductCategory
 
 #Atributos: ProductSubcategoryKey, ProductSubcategoryAlternateKey, EnglishProductSubcategoryName, SpanishProductSubcategoryName
 # FrenchProductSubcategoryName, ProductCategoryKey
-def transformDimProductSubcategory(tablas):
-    dimProductSubcategory = pd.DataFrame()
+def transformDimProductSubcategory(ProductSubcategory):
+
+    translationsSubcategory = {
+    "Mountain Bikes": {"es": "Bicicletas de Montaña", "fr": "Vélos de Montagne"},
+    "Road Bikes": {"es": "Bicicletas de Ruta", "fr": "Vélos de Route"},
+    "Touring Bikes": {"es": "Bicicletas de Turismo", "fr": "Vélos de Tourisme"},
+    "Handlebars": {"es": "Manillares", "fr": "Guidons"},
+    "Bottom Brackets": {"es": "Ejes de Centro", "fr": "Boîtiers de Pédalier"},
+    "Brakes": {"es": "Frenos", "fr": "Freins"},
+    "Chains": {"es": "Cadenas", "fr": "Chaînes"},
+    "Cranksets": {"es": "Juego de Bielas", "fr": "Pédaliers"},
+    "Derailleurs": {"es": "Desviadores", "fr": "Dérailleurs"},
+    "Forks": {"es": "Horquillas", "fr": "Fourches"},
+    "Headsets": {"es": "Juegos de Dirección", "fr": "Jeux de Direction"},
+    "Mountain Frames": {"es": "Marcos de Montaña", "fr": "Cadres de Montagne"},
+    "Pedals": {"es": "Pedales", "fr": "Pédales"},
+    "Road Frames": {"es": "Marcos de Ruta", "fr": "Cadres de Route"},
+    "Saddles": {"es": "Sillines", "fr": "Selles"},
+    "Touring Frames": {"es": "Marcos de Turismo", "fr": "Cadres de Tourisme"},
+    "Wheels": {"es": "Ruedas", "fr": "Roues"},
+    "Bib-Shorts": {"es": "Pantalones con Tirantes", "fr": "Cuissards à Bretelles"},
+    "Caps": {"es": "Gorras", "fr": "Casquettes"},
+    "Gloves": {"es": "Guantes", "fr": "Gants"},
+    "Jerseys": {"es": "Jerseys", "fr": "Maillots"},
+    "Shorts": {"es": "Pantalonetas", "fr": "Shorts"},
+    "Socks": {"es": "Medias", "fr": "Chaussettes"},
+    "Tights": {"es": "Mallas", "fr": "Collants"},
+    "Vests": {"es": "Chalecos", "fr": "Gilets"},
+    "Bike Racks": {"es": "Portabicicletas", "fr": "Porte-Vélos"},
+    "Bike Stands": {"es": "Soportes para Bicicletas", "fr": "Supports de Vélo"},
+    "Bottles and Cages": {"es": "Botellas y Portabotellas", "fr": "Bouteilles et Porte-Bouteilles"},
+    "Cleaners": {"es": "Limpiadores", "fr": "Nettoyants"},
+    "Fenders": {"es": "Guardabarros", "fr": "Garde-Boue"},
+    "Helmets": {"es": "Cascos", "fr": "Casques"},
+    "Hydration Packs": {"es": "Mochilas de Hidratación", "fr": "Sacs d'Hydratation"},
+    "Lights": {"es": "Luces", "fr": "Lumières"},
+    "Locks": {"es": "Candados", "fr": "Antivols"},
+    "Panniers": {"es": "Alforjas", "fr": "Sacoches"},
+    "Pumps": {"es": "Bombas de Aire", "fr": "Pompes"},
+    "Tires and Tubes": {"es": "Llantas y Tubos", "fr": "Pneus et Chambres à Air"}
+}
+
+    dimProductSubcategory = pd.DataFrame(columns=[ 
+        "ProductSubcategoryKey", "ProductSubcategoryAlternateKey",
+        "EnglishProductSubcategoryName", "SpanishProductSubcategoryName", "FrenchProductSubcategoryName",
+        "ProductCategoryKey"
+    ])
+
+    dimProductSubcategory["ProductSubcategoryKey"] = ProductSubcategory["ProductSubcategoryID"]
+    dimProductSubcategory["ProductSubcategoryAlternateKey"] = ProductSubcategory["ProductSubcategoryID"]
+    dimProductSubcategory["EnglishProductSubcategoryName"] = ProductSubcategory["Name"]
+    dimProductSubcategory["SpanishProductSubcategoryName"] = dimProductSubcategory["EnglishProductSubcategoryName"].apply(
+    lambda x: translationsSubcategory[x]["es"]
+)
+    dimProductSubcategory["FrenchProductSubcategoryName"] = dimProductSubcategory["EnglishProductSubcategoryName"].apply(
+    lambda x: translationsSubcategory[x]["fr"]
+)
+    dimProductSubcategory["ProductCategoryKey"] = ProductSubcategory["ProductCategoryID"]
+    
     return dimProductSubcategory
 
 #Atributos: PromotionKey, PromotionAlternateKey, EnglishPromotionName
@@ -439,9 +532,18 @@ def transformDimReseller(tablas):
     return dimReseller
 
 #Atributos: SalesReasonKey, SalesReasonAlternateKey, SalesReasonName, SalesReasonReasonType
-def transformDimSalesReason(tablas):
-    dimSalesReason = pd.DataFrame()
+def  transformDimSalesReason(SalesReason):
+    dimSalesReason = pd.DataFrame(columns=[
+        "SalesReasonKey", "SalesReasonAlternateKey", "SalesReasonName", "SalesReasonType"
+    ])
+
+    dimSalesReason["SalesReasonKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonAlternateKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonName"] = SalesReason["Name"]
+    dimSalesReason["SalesReasonType"] = SalesReason["ReasonType"]
+
     return dimSalesReason
+   
 
 #Atributos: SalesTerritoryKey, SalesTerritoryAlternateKey, SalesTerritoryRegion, SalesTerritoryCountry
 # SalesTerritoryGroup, SalesTerritoryImage
