@@ -1,6 +1,7 @@
 from sqlalchemy import text, inspect
 import pandas as pd
 from sqlalchemy.engine import Engine
+import xml.etree.ElementTree as ET
 
 def cargaSegura(engine, schema, table):
     inspector = inspect(engine)
@@ -42,6 +43,40 @@ def cargaSegura(engine, schema, table):
 
     df = pd.read_sql_query(query, con=engine)
     return df
+
+def extraerDemografia(df, xml_col):
+    data = []
+    
+    for xml_str in df[xml_col]:
+        try:
+            root = ET.fromstring(xml_str)
+            row = {child.tag.split('}')[1]: child.text for child in root}
+            data.append(row)
+        except ET.ParseError:
+            # En caso de que haya XML mal formado
+            data.append({})
+    
+    df_parsed = pd.DataFrame(data)
+    
+    # Columnas numéricas conocidas
+    numeric_cols = [
+        'TotalPurchaseYTD', 'TotalChildren', 'NumberChildrenAtHome',
+        'NumberCarsOwned', 'HomeOwnerFlag'
+    ]
+    
+    for col in numeric_cols:
+        if col in df_parsed.columns:
+            df_parsed[col] = pd.to_numeric(df_parsed[col], errors='coerce')
+    
+    # Columnas de fecha conocidas
+    date_cols = ['BirthDate', 'DateFirstPurchase']
+    
+    for col in date_cols:
+        if col in df_parsed.columns:
+            df_parsed[col] = df_parsed[col].str.replace('Z','', regex=False)  # quitar la Z
+            df_parsed[col] = pd.to_datetime(df_parsed[col], errors='coerce', format='%Y-%m-%d')
+    
+    return df_parsed
 
 def new_data(conne: Engine) -> bool:
     queryo = text('select saved from hecho_atencion order by saved desc limit 1;')
