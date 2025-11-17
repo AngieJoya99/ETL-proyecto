@@ -456,9 +456,18 @@ def transformDimReseller(tablas):
     return dimReseller
 
 #Atributos: SalesReasonKey, SalesReasonAlternateKey, SalesReasonName, SalesReasonReasonType
-def transformDimSalesReason(tablas):
-    dimSalesReason = pd.DataFrame()
+def  transformDimSalesReason(SalesReason):
+    dimSalesReason = pd.DataFrame(columns=[
+        "SalesReasonKey", "SalesReasonAlternateKey", "SalesReasonName", "SalesReasonType"
+    ])
+
+    dimSalesReason["SalesReasonKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonAlternateKey"] = SalesReason["SalesReasonID"]
+    dimSalesReason["SalesReasonName"] = SalesReason["Name"]
+    dimSalesReason["SalesReasonType"] = SalesReason["ReasonType"]
+
     return dimSalesReason
+   
 
 #Atributos: SalesTerritoryKey, SalesTerritoryAlternateKey, SalesTerritoryRegion, SalesTerritoryCountry
 # SalesTerritoryGroup, SalesTerritoryImage
