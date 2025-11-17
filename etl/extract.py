@@ -122,4 +122,48 @@ def extractEmployeeHierarchy(conection: Engine):
         ON e.OrganizationNode.GetAncestor(1) = m.OrganizationNode;
     """
     return pd.read_sql_query(query, con=conection)
+
+def extracProductDescription(engine):
+    query = """
+    SELECT 
+        p.ProductID,
+        MAX(CASE WHEN c.CultureID = 'en' THEN pd.Description END) as EnglishDescription,
+        MAX(CASE WHEN c.CultureID = 'fr' THEN pd.Description END) as FrenchDescription,
+        MAX(CASE WHEN c.CultureID LIKE 'zh%' THEN pd.Description END) as ChineseDescription,
+        MAX(CASE WHEN c.CultureID = 'ar' THEN pd.Description END) as ArabicDescription,
+        MAX(CASE WHEN c.CultureID = 'he' THEN pd.Description END) as HebrewDescription,
+        MAX(CASE WHEN c.CultureID = 'th' THEN pd.Description END) as ThaiDescription,
+        MAX(CASE WHEN c.CultureID = 'de' THEN pd.Description END) as GermanDescription,
+        MAX(CASE WHEN c.CultureID = 'ja' THEN pd.Description END) as JapaneseDescription,
+        MAX(CASE WHEN c.CultureID = 'tr' THEN pd.Description END) as TurkishDescription
+    FROM Production.Product p
+    LEFT JOIN Production.ProductModel pm 
+        ON p.ProductModelID = pm.ProductModelID
+    LEFT JOIN Production.ProductModelProductDescriptionCulture pmpdc 
+        ON pm.ProductModelID = pmpdc.ProductModelID
+    LEFT JOIN Production.ProductDescription pd 
+        ON pmpdc.ProductDescriptionID = pd.ProductDescriptionID
+    LEFT JOIN Production.Culture c 
+        ON pmpdc.CultureID = c.CultureID
+    GROUP BY p.ProductID
+    ORDER BY p.ProductID
+    """
+    return pd.read_sql_query(query, con=engine)
+
+
+def extractDealerPrices(engine):
+    query = """
+    SELECT
+        ProductID,
+        SpecialOfferID,
+        UnitPrice,
+        UnitPriceDiscount,
+        UnitPrice * (1 - UnitPriceDiscount) AS DealerPrice
+    FROM
+        Sales.SalesOrderDetail;
+
+    """
+    return pd.read_sql_query(query, con=engine)
+
+
     
