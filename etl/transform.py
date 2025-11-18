@@ -38,7 +38,7 @@ def transformDimCurrency(currency):
 #EnglishOccupation, SpanishOccupation, FrenchOccupation, HouseOwnerFlag, NumberCarsOwned, 
 # AddressLine1, AddressLine2, Phone, DateFirstPurchase, CommuteDistance
 def transformDimCustomer(person, sales):
-    #Tipos IN = Individual Customer    
+    #Tipos IN = Individual Customer
     dimCustomer = person["Person"][person["Person"]["PersonType"] == 'IN'].copy()
     dimCustomer = dimCustomer.drop(columns=[
         'PersonType', 'EmailPromotion', 'AdditionalContactInfo', 'ModifiedDate', 'rowguid'
@@ -84,19 +84,25 @@ def transformDimCustomer(person, sales):
     phone = person["PersonPhone"].drop(columns=['ModifiedDate', 'PhoneNumberTypeID'])
     email = person["EmailAddress"].drop(columns=['EmailAddressID', 'rowguid', 'ModifiedDate'])
     
-    dimCustomer = dimCustomer.merge(customer[customer['PersonID'].notna()], left_on='BusinessEntityID', right_on='PersonID', how='inner')
+    dimCustomer = dimCustomer.merge(customer[customer['PersonID'].notna()], left_on='BusinessEntityID', right_on='PersonID', how='inner').drop(columns=['PersonID'])
     dimCustomer = dimCustomer.merge(businessEntityAddress, on='BusinessEntityID', how='left')
     dimCustomer = dimCustomer.merge(direccion, on='AddressID', how='left')
     dimCustomer = dimCustomer.merge(phone, on='BusinessEntityID', how='left')
     dimCustomer = dimCustomer.merge(email, on='BusinessEntityID', how='left')
-    
+
     dimCustomer['CustomerKey'] = range(11000, 11000 + len(dimCustomer))
-    dimCustomer['CustomerAlternateKey'] = 'AW' + dimCustomer['CustomerKey'].astype(str).str.zfill(8)
+    dimCustomer = dimCustomer.merge(
+        customer[customer['PersonID'].notna()][['PersonID', 'AccountNumber']],
+        left_on='BusinessEntityID',
+        right_on='PersonID',
+        how='left'
+    ).rename(columns={'AccountNumber_y': 'CustomerAlternateKey'})
+
     
-    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'PersonID', 'StoreID', 'TerritoryID',
-       'AccountNumber', 'ModifiedDate_x', 'AddressID', 'AddressTypeID',
-       'rowguid', 'ModifiedDate_y', 'City',
-       'StateProvinceID', 'ModifiedDate'        
+    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'StoreID', 'TerritoryID', 
+       'ModifiedDate_x', 'AddressID', 'AddressTypeID', 'PersonID',
+       'rowguid', 'ModifiedDate_y', 'City', 'AccountNumber_x',
+       'StateProvinceID', 'ModifiedDate',       
     ])
     
     return dimCustomer
@@ -170,6 +176,12 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
         "VacationHours", "SickLeaveHours", "CurrentFlag", "SalesPersonFlag", "Status"
     ])
 
+    employeePayHistory = (
+        employeePayHistory.sort_values("RateChangeDate")
+        .groupby("BusinessEntityID")
+        .tail(1)
+    )
+    
     dimEmployee["EmployeeKey"] = employee["BusinessEntityID"]
     dimEmployee["EmployeeNationalIDAlternateKey"] = employee["NationalIDNumber"]
     dimEmployee["Title"] = employee["JobTitle"]
@@ -234,13 +246,14 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
 
     
     dimEmployee = dimEmployee.merge(
-        employeeDepartmentHistory[["BusinessEntityID", "DepartmentID"]],
+        employeeDepartmentHistory[["BusinessEntityID", "DepartmentID", "StartDate", "EndDate"]],
         left_on="EmployeeKey",
         right_on="BusinessEntityID",
         how="left"
     ).merge(
         department[["DepartmentID", "Name"]],
-        on="DepartmentID",
+        left_on="DepartmentID",
+        right_on="DepartmentID",
         how="left"
     ).rename(columns={"Name": "DepartmentName"}).drop(columns=["BusinessEntityID", "DepartmentID"])
 
@@ -251,13 +264,6 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
         1,
         0
     )
-
-    dimEmployee = dimEmployee.merge(
-        employeeDepartmentHistory[["BusinessEntityID", "StartDate", "EndDate"]],
-        left_on="EmployeeKey",
-        right_on="BusinessEntityID",
-        how="left"
-    ).drop(columns=["BusinessEntityID"])
 
     dimEmployee["Status"] = np.where(
         dimEmployee["EndDate"].isna(),
@@ -273,8 +279,10 @@ def transformDimEmployee(employee, employeePayHistory, employeeDepartmentHistory
     ]
 
     dimEmployee = dimEmployee[column_order]
-    dimEmployee = dimEmployee.drop_duplicates(subset=["EmployeeKey"])
-
+    dimEmployee["EmployeeKey"] = range(1, len(dimEmployee) + 1)
+    lookup = dimEmployee.set_index("EmployeeNationalIDAlternateKey")["EmployeeKey"].to_dict()
+    dimEmployee["ParentEmployeeKey"] = dimEmployee["ParentEmployeeNationalIDAlternateKey"].map(lookup)
+    
     
     return dimEmployee
 
@@ -653,9 +661,120 @@ def transformDimPromotion(specialOffer):
 # OrderMonth, FirstOrderYear, LastOrderYear, ProductLine
 # AddressLine1, AddressLine2, AnnualSales, BankName
 # MinPaymentType, MinPaymentAmount, AnnualRevenue, YearOpened
-def transformDimReseller(tablas):
-    dimReseller = pd.DataFrame()
+
+# El parametro demographics se obtiene con la función utils_etl.extractStoreDemographics(oltp)
+# sales["Customer"],
+#   sales["SalesOrderHeader"],
+#    person["PersonPhone"],
+#    person["Address"],
+#    person["BusinessEntityAddress"]  
+
+def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress, personBusinessEntityAddress, demographics):
+    dimReseller = pd.DataFrame(columns=[
+        "ResellerKey", "GeographyKey", "ResellerAlternateKey", 
+         "OrderFrequency", 
+        "OrderMonth", "FirstOrderYear", "LastOrderYear",    "MinPaymentType", "MinPaymentAmount", 
+         "IDStore"
+    ])
+
+    #demographics = utils_etl.extractStoreDemographics(oltp)
+
+    # Este es para usarlo solo para sacar el CustomerID que va a SalesOrderHeader
+
+    customersNoNulos = customer[
+        customer["PersonID"].notna() & customer["StoreID"].notna()
+    ].copy()  
+
+    # Renombrar CustomerID a CustomerStoreID
+    customersNoNulos = customersNoNulos.rename(columns={"CustomerID": "CustomerStoreID"})
+
+    ####
+
+    customer = customer[customer["PersonID"].isna()]
+
+
+    dimReseller["ResellerKey"] = customer["CustomerID"]
+    dimReseller["ResellerAlternateKey"] = customer["AccountNumber"]
+    dimReseller["IDStore"] = customer["StoreID"]
+
+
+    # Datos que se pueden traer desde demographics
+    dimReseller = dimReseller.merge(
+        demographics[["BusinessEntityID", "ResellerName", "BusinessType", "NumberEmployees", "AnnualSales", "BankName", "AnnualRevenue", "YearOpened", "ProductLine"]],
+        left_on="IDStore",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    # Teléfono
+    dimReseller = dimReseller.merge(
+        personPhone[["BusinessEntityID", "PhoneNumber"]],
+        left_on=dimReseller["IDStore"] - 1, # PersonID es StoreID - 1
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]) \
+     .rename(columns={"PhoneNumber": "Phone"})
+    
+    # Direccion
+    dimReseller = dimReseller.merge(
+        personBusinessEntityAddress[["BusinessEntityID", "AddressID"]],
+        left_on=dimReseller["IDStore"],
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    dimReseller = dimReseller.merge(
+        personAddress[["AddressID", "AddressLine1", "AddressLine2"]],
+        on="AddressID",
+        how="left"
+    ).drop(columns=["AddressID"])
+
+    # Tipo de negocio 
+    codeBusiness = {"BM": "Value Added Reseller", "BS": "Specialty Bike Shop", "OS": "Warehouse"}
+    dimReseller["BusinessType"] = dimReseller["BusinessType"].map(codeBusiness)
+
+    # Orders
+    dimReseller = dimReseller.merge(
+        customersNoNulos[["CustomerStoreID", "StoreID"]],
+        left_on=dimReseller["IDStore"],
+        right_on="StoreID",
+        how="left"
+    )
+    
+
+    dimReseller = dimReseller.merge(
+        salesOrderHeader[["CustomerID", "OrderDate"]],
+        left_on=dimReseller["CustomerStoreID"],
+        right_on="CustomerID",
+        how="left"
+    )
+
+    order_counts = dimReseller.groupby("CustomerStoreID")["OrderDate"].count()
+    dimReseller["OrderFrequency"] = dimReseller["CustomerStoreID"].map(order_counts)
+    dimReseller["OrderMonth"] = dimReseller["OrderDate"].dt.month
+    dimReseller["FirstOrderYear"] = dimReseller.groupby("CustomerStoreID")["OrderDate"].transform("min").dt.year
+    dimReseller["LastOrderYear"]  = dimReseller.groupby("CustomerStoreID")["OrderDate"].transform("max").dt.year
+
+    # Frecuency
+    
+
+
+
+    # Pasar las columnas a int
+    cols_int = ["NumberEmployees", "YearOpened",  "OrderMonth", "FirstOrderYear", "LastOrderYear", "OrderFrequency"]
+
+    for c in cols_int:
+        dimReseller[c] = dimReseller[c].astype("Int64")
+    
+    column_order = ["ResellerKey", "GeographyKey", "ResellerAlternateKey", "Phone", "BusinessType", "ResellerName", 
+                    "NumberEmployees", "OrderFrequency", "OrderMonth", "FirstOrderYear", "LastOrderYear", 
+                    "ProductLine", "AddressLine1", "AddressLine2", "AnnualSales", "BankName", "MinPaymentType", 
+                    "MinPaymentAmount", "AnnualRevenue", "YearOpened"]
+    dimReseller = dimReseller[column_order]
+    dimReseller = dimReseller.drop_duplicates(subset=["ResellerKey"])
+
     return dimReseller
+
 
 #Atributos: SalesReasonKey, SalesReasonAlternateKey, SalesReasonName, SalesReasonReasonType
 def  transformDimSalesReason(SalesReason):
@@ -715,62 +834,101 @@ def transformFactCurrencyRate(sales):
 # ProductStandardCost, TotalProductCost, SalesAmount, TaxAmt
 # Freight, CarrierTrackingNumber, CustomerPONumber, OrderDate
 # DueDate, ShipDate
-def transformFactInternetSales (product, salesOrderDetail, salesOrderHeader):
-  factInternetSales = pd.DataFrame(columns=[
-    "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CurrencyKey",
-    "SalesOrderLineNumber", "RevisionNumber", 
-    "CustomerPONumber"
-  ]) 
+def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, customer, dimCustomer, dimCurrency, currencyRate, stateProvince, salesTaxRate):
+    salesOrderDetail = salesOrderDetail.copy()
+    salesOrderDetail["SalesOrderLineNumber"] = (
+        salesOrderDetail.groupby("SalesOrderID").cumcount() + 1
+    )
 
-  factInternetSales["ProductKey"] = product["ProductID"]
+    # Start building factInternetSales from salesOrderDetail
+    factInternetSales = salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", 
+                                            "SalesOrderLineNumber", "OrderQty", "UnitPrice", 
+                                            "UnitPriceDiscount", "LineTotal", "CarrierTrackingNumber"]].rename(
+        columns={"ProductID": "ProductKey"}
+    )
 
-  factInternetSales = factInternetSales.merge(
-        salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", "OrderQty", "UnitPrice", "UnitPriceDiscount", "LineTotal","CarrierTrackingNumber"]],
-        left_on="ProductKey",
-        right_on="ProductID",
-        how="left"
-  ).rename(columns={"SalesOrderID": "SalesOrderNumber", "SpecialOfferID": "PromotionKey", "OrderQty": "OrderQuantity", 
-                    "UnitPriceDiscount": "UnitPriceDiscountPct", "LineTotal": "SalesAmount"}) \
-   .drop(columns=["ProductID"]) #No estoy segura si LineTotal es SalesAmount ni de UnitPriceDiscountPct (En el factInternetSales no hay ninguna sale con descuento ??)
-
-  factInternetSales["SalesOrderNumber"] = 'SO' + factInternetSales["SalesOrderNumber"].astype(str)
-
-  factInternetSales = factInternetSales.merge(
-        salesOrderDetail[["SalesOrderID", "ProductID"]],
-        left_on="ProductKey",
-        right_on="ProductID",
-        how="left"
-    ).merge(
-        salesOrderHeader[["SalesOrderID","OrderDate", "DueDate", "ShipDate", "CustomerID", "TerritoryID", "TaxAmt", "Freight"]],
+    # Now merge with salesOrderHeader
+    factInternetSales = factInternetSales.merge(
+        salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
+                            "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
+                            "Freight", "CurrencyRateID"]],
         on="SalesOrderID",
         how="left"
-    ).rename(columns={"CustomerID": "CustomerKey", "TerritoryID": "SalesTerritoryKey"}) \
-     .drop(columns=["ProductID", "DepartmentID", "SalesOrderID"])
-  
-  factInternetSales = factInternetSales.merge(
+    ).rename(columns={
+        "SpecialOfferID": "PromotionKey", 
+        "OrderQty": "OrderQuantity", 
+        "UnitPriceDiscount": "UnitPriceDiscountPct", 
+        "TerritoryID": "SalesTerritoryKey", 
+        "LineTotal": "SalesAmount"
+    }).drop(columns=["SalesOrderID"])
+    
+    # Rest of your code remains the same...
+    factInternetSales = factInternetSales.merge(
+        customer[["CustomerID", "AccountNumber"]],
+        on="CustomerID",
+        how="left"
+    ).drop(columns=["CustomerID"]).merge(
+        dimCustomer[["CustomerAlternateKey", "CustomerKey"]],
+        left_on="AccountNumber",
+        right_on="CustomerAlternateKey",
+        how="left"
+    ).drop(columns=["CustomerAlternateKey", "AccountNumber"])
+    
+    factInternetSales = factInternetSales.merge(
         product[["ProductID", "StandardCost"]],
         left_on="ProductKey",
         right_on="ProductID",
         how="left"
     ).rename(columns={"StandardCost": "ProductStandardCost"}) \
-     .drop(columns=["ProductID"])
-  
+    .drop(columns=["ProductID"])
+    
+    factInternetSales = factInternetSales.merge(
+        currencyRate[["CurrencyRateID", "ToCurrencyCode"]],
+        on="CurrencyRateID",
+        how="left"
+    ).drop(columns=["CurrencyRateID"]).merge(
+        dimCurrency[["CurrencyAlternateKey", "CurrencyKey"]],
+        left_on="ToCurrencyCode",
+        right_on="CurrencyAlternateKey",
+        how="left"
+    ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
 
-  
-  # No estoy segura de esto
-  factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
-  factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
-  factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
-  
-  # Todos los "CustomerPONumber" son NULL en factInternetSales
-  # RevisionNumber siempre es 1
+    factInternetSales = factInternetSales.merge(
+        stateProvince[["StateProvinceID", "TerritoryID"]],
+        left_on="SalesTerritoryKey",
+        right_on="TerritoryID",
+        how="left"
+    ).drop(columns=["TerritoryID"]).merge(
+        salesTaxRate[["StateProvinceID", "TaxRate"]],
+        on="StateProvinceID",
+        how="left"
+    ).drop(columns=["StateProvinceID"])
 
-  """column_order = [ "ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey","PromotionKey", "CurrencyKey",
-    "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
-    "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
-    "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "CustomerPONumber", "OrderDate", "DueDate", "ShipDate" ]"""
-  
-  return factInternetSales
+    def transforma_date(date):
+        if pd.isna(date):
+            return None
+        return int(date.strftime("%Y%m%d"))
+    
+    factInternetSales["OrderDateKey"] = factInternetSales["OrderDate"].apply(transforma_date).astype("Int64")
+    factInternetSales["DueDateKey"] = factInternetSales["DueDate"].apply(transforma_date).astype("Int64")
+    factInternetSales["ShipDateKey"] = factInternetSales["ShipDate"].apply(transforma_date).astype("Int64")
+    
+    factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
+    factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
+    factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
+    factInternetSales["TaxAmt"] = (factInternetSales["ExtendedAmount"] - factInternetSales["DiscountAmount"]) * (factInternetSales["TaxRate"] / 100)
+
+    factInternetSales = factInternetSales.drop(columns=["TaxRate"])
+    
+
+    column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey", "PromotionKey", "CurrencyKey",
+        "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
+        "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
+        "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
+    
+    factInternetSales = factInternetSales[column_order]
+    
+    return factInternetSales
 
 
 
