@@ -690,7 +690,7 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
 
     ####
 
-    customer = customer[customer["PersonID"].isna()]
+    customer = customer[customer["StoreID"].notna()]
 
 
     dimReseller["ResellerKey"] = customer["CustomerID"]
