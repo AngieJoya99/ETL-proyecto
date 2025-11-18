@@ -230,7 +230,28 @@ def generar_size_range_tabla(product):
 
 
 
+def extractStoreDemographics(engine):
+    query = """
+    WITH XMLNAMESPACES (
+        'http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey' AS ss
+    )
+    SELECT 
+        s.BusinessEntityID AS BusinessEntityID,
+        s.Name AS ResellerName,
+        s.StorePersonID AS StorePersonID,
 
+        s.Demographics.value('(ss:StoreSurvey/ss:YearOpened)[1]', 'int') AS YearOpened,
+        s.Demographics.value('(ss:StoreSurvey/ss:AnnualSales)[1]', 'money') AS AnnualSales,
+        s.Demographics.value('(ss:StoreSurvey/ss:AnnualRevenue)[1]', 'money') AS AnnualRevenue,
+        s.Demographics.value('(ss:StoreSurvey/ss:NumberEmployees)[1]', 'int') AS NumberEmployees,
+        s.Demographics.value('(ss:StoreSurvey/ss:BankName)[1]', 'nvarchar(100)') AS BankName,
+        s.Demographics.value('(ss:StoreSurvey/ss:BusinessType)[1]', 'nvarchar(20)') AS BusinessType,
+        s.Demographics.value('(ss:StoreSurvey/ss:Specialty)[1]', 'nvarchar(50)') AS ProductLine
+
+    FROM Sales.Store s;
+    """
+    
+    return pd.read_sql_query(query, con=engine)
 
 
 

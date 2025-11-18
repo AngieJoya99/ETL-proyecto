@@ -653,9 +653,120 @@ def transformDimPromotion(specialOffer):
 # OrderMonth, FirstOrderYear, LastOrderYear, ProductLine
 # AddressLine1, AddressLine2, AnnualSales, BankName
 # MinPaymentType, MinPaymentAmount, AnnualRevenue, YearOpened
-def transformDimReseller(tablas):
-    dimReseller = pd.DataFrame()
+
+# El parametro demographics se obtiene con la función utils_etl.extractStoreDemographics(oltp)
+# sales["Customer"],
+#   sales["SalesOrderHeader"],
+#    person["PersonPhone"],
+#    person["Address"],
+#    person["BusinessEntityAddress"]  
+
+def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress, personBusinessEntityAddress, demographics):
+    dimReseller = pd.DataFrame(columns=[
+        "ResellerKey", "GeographyKey", "ResellerAlternateKey", 
+         "OrderFrequency", 
+        "OrderMonth", "FirstOrderYear", "LastOrderYear",    "MinPaymentType", "MinPaymentAmount", 
+         "IDStore"
+    ])
+
+    #demographics = utils_etl.extractStoreDemographics(oltp)
+
+    # Este es para usarlo solo para sacar el CustomerID que va a SalesOrderHeader
+
+    customersNoNulos = customer[
+        customer["PersonID"].notna() & customer["StoreID"].notna()
+    ].copy()  
+
+    # Renombrar CustomerID a CustomerStoreID
+    customersNoNulos = customersNoNulos.rename(columns={"CustomerID": "CustomerStoreID"})
+
+    ####
+
+    customer = customer[customer["PersonID"].isna()]
+
+
+    dimReseller["ResellerKey"] = customer["CustomerID"]
+    dimReseller["ResellerAlternateKey"] = customer["AccountNumber"]
+    dimReseller["IDStore"] = customer["StoreID"]
+
+
+    # Datos que se pueden traer desde demographics
+    dimReseller = dimReseller.merge(
+        demographics[["BusinessEntityID", "ResellerName", "BusinessType", "NumberEmployees", "AnnualSales", "BankName", "AnnualRevenue", "YearOpened", "ProductLine"]],
+        left_on="IDStore",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    # Teléfono
+    dimReseller = dimReseller.merge(
+        personPhone[["BusinessEntityID", "PhoneNumber"]],
+        left_on=dimReseller["IDStore"] - 1, # PersonID es StoreID - 1
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]) \
+     .rename(columns={"PhoneNumber": "Phone"})
+    
+    # Direccion
+    dimReseller = dimReseller.merge(
+        personBusinessEntityAddress[["BusinessEntityID", "AddressID"]],
+        left_on=dimReseller["IDStore"],
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"])
+
+    dimReseller = dimReseller.merge(
+        personAddress[["AddressID", "AddressLine1", "AddressLine2"]],
+        on="AddressID",
+        how="left"
+    ).drop(columns=["AddressID"])
+
+    # Tipo de negocio 
+    codeBusiness = {"BM": "Value Added Reseller", "BS": "Specialty Bike Shop", "OS": "Warehouse"}
+    dimReseller["BusinessType"] = dimReseller["BusinessType"].map(codeBusiness)
+
+    # Orders
+    dimReseller = dimReseller.merge(
+        customersNoNulos[["CustomerStoreID", "StoreID"]],
+        left_on=dimReseller["IDStore"],
+        right_on="StoreID",
+        how="left"
+    )
+    
+
+    dimReseller = dimReseller.merge(
+        salesOrderHeader[["CustomerID", "OrderDate"]],
+        left_on=dimReseller["CustomerStoreID"],
+        right_on="CustomerID",
+        how="left"
+    )
+
+    order_counts = dimReseller.groupby("CustomerStoreID")["OrderDate"].count()
+    dimReseller["OrderFrequency"] = dimReseller["CustomerStoreID"].map(order_counts)
+    dimReseller["OrderMonth"] = dimReseller["OrderDate"].dt.month
+    dimReseller["FirstOrderYear"] = dimReseller.groupby("CustomerStoreID")["OrderDate"].transform("min").dt.year
+    dimReseller["LastOrderYear"]  = dimReseller.groupby("CustomerStoreID")["OrderDate"].transform("max").dt.year
+
+    # Frecuency
+    
+
+
+
+    # Pasar las columnas a int
+    cols_int = ["NumberEmployees", "YearOpened",  "OrderMonth", "FirstOrderYear", "LastOrderYear", "OrderFrequency"]
+
+    for c in cols_int:
+        dimReseller[c] = dimReseller[c].astype("Int64")
+    
+    column_order = ["ResellerKey", "GeographyKey", "ResellerAlternateKey", "Phone", "BusinessType", "ResellerName", 
+                    "NumberEmployees", "OrderFrequency", "OrderMonth", "FirstOrderYear", "LastOrderYear", 
+                    "ProductLine", "AddressLine1", "AddressLine2", "AnnualSales", "BankName", "MinPaymentType", 
+                    "MinPaymentAmount", "AnnualRevenue", "YearOpened"]
+    dimReseller = dimReseller[column_order]
+    dimReseller = dimReseller.drop_duplicates(subset=["ResellerKey"])
+
     return dimReseller
+
 
 #Atributos: SalesReasonKey, SalesReasonAlternateKey, SalesReasonName, SalesReasonReasonType
 def  transformDimSalesReason(SalesReason):
