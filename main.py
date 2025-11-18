@@ -15,8 +15,14 @@ with open('config.yml', 'r') as f:
     config = yaml.safe_load(f)
     config_oltp = config['OLTP']
     config_olap = config['OLAP']
+    config_oltp = config['OLTP']
+    config_olap = config['OLAP']
 
 # Construct the database URL
+url_oltp = (f"mssql+pyodbc://{config_oltp['user']}:{config_oltp['password']}@{config_oltp['host']},{config_oltp['port']}/{config_oltp['dbname']}"
+          f"?driver={config_oltp['drivername'].replace(' ', '+')}")
+url_olap = (f"mssql+pyodbc://{config_olap['user']}:{config_olap['password']}@{config_olap['host']},{config_olap['port']}/{config_olap['dbname']}"
+           f"?driver={config_olap['drivername'].replace(' ', '+')}")
 url_oltp = (f"mssql+pyodbc://{config_oltp['user']}:{config_oltp['password']}@{config_oltp['host']},{config_oltp['port']}/{config_oltp['dbname']}"
           f"?driver={config_oltp['drivername'].replace(' ', '+')}")
 url_olap = (f"mssql+pyodbc://{config_olap['user']}:{config_olap['password']}@{config_olap['host']},{config_olap['port']}/{config_olap['dbname']}"
@@ -24,11 +30,16 @@ url_olap = (f"mssql+pyodbc://{config_olap['user']}:{config_olap['password']}@{co
 # Create the SQLAlchemy Engine
 oltp = create_engine(url_oltp)
 olap = create_engine(url_olap)
+oltp = create_engine(url_oltp)
+olap = create_engine(url_olap)
 
+inspector = inspect(olap)
 inspector = inspect(olap)
 tnames = inspector.get_table_names()
 
 if not tnames:
+    conn = psycopg2.connect(dbname=config_olap['dbname'], user=config_olap['user'], password=config_olap['password'],
+                            host=config_olap['host'], port=config_olap['port'])
     conn = psycopg2.connect(dbname=config_olap['dbname'], user=config_olap['user'], password=config_olap['password'],
                             host=config_olap['host'], port=config_olap['port'])
     cur = conn.cursor()
@@ -38,6 +49,7 @@ if not tnames:
             cur.execute(val)
             conn.commit()
 
+if utils_etl.new_data(olap):
 if utils_etl.new_data(olap):
 
     #Extract
@@ -107,6 +119,7 @@ if utils_etl.new_data(olap):
     load.loadNewFactCurrencyRate(newFactCurrencyRate, olap)
 
     print('success all facts loaded')
+    
     
 else:
     print('done not new data')
