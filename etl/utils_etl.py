@@ -238,7 +238,7 @@ def extractStoreDemographics(engine):
     SELECT 
         s.BusinessEntityID AS BusinessEntityID,
         s.Name AS ResellerName,
-        s.StorePersonID AS StorePersonID,
+        s.SalesPersonID AS StorePersonID,
 
         s.Demographics.value('(ss:StoreSurvey/ss:YearOpened)[1]', 'int') AS YearOpened,
         s.Demographics.value('(ss:StoreSurvey/ss:AnnualSales)[1]', 'money') AS AnnualSales,
