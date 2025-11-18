@@ -46,6 +46,14 @@ if utils_etl.new_data(olap):
     production = extract.extractProduction(oltp)
     purchasing = extract.extractPurchasing(oltp)
     sales = extract.extractSales(oltp)
+    description = extract.extracProductDescription(oltp)
+    dealerPrices = extract.extractDealerPrices(oltp)
+    
+    description_translated = utils_etl.translate_missing_fast(description)
+    df = production["Product"].copy()
+    name_translated = utils_etl.translate_missing_fast_name(df)
+    size_range_df = utils_etl.generar_size_range_tabla(production["Product"])
+    
 
 
     #Transform - Crear Tablas
@@ -64,25 +72,49 @@ if utils_etl.new_data(olap):
         "Hierarchy"# ["Hierarchy"]
     )
     dimGeography = transform.transformDimGeography(sales, person)
-    dimProduct = "FALTA AÑADIR"
+    dimProduct = transform.transformDimProduct(production["Product"], description_translated, name_translated, production["ProductModel"], 
+                production["ProductListPriceHistory"], dealerPrices= dealerPrices, sizeRange= size_range_df)
     dimProductCategory = transform.transformDimProductCategory(production["ProductCategory"])
     dimProductSubcategory = transform.transformDimProductSubcategory(production["ProductSubcategory"])
     dimPromotion = transform.transformDimPromotion(sales["SpecialOffer"])
-    dimReseller = "FALTA AÑADIR" #transform.transformDimReseller(tablas)
+    dimReseller = transform.transformDimReseller(purchasing["Vendor"], sales["Reseller"], person["Person"], person["EmailAddress"], person["PersonPhone"])
     dimSalesReason = transform.transformDimSalesReason(sales["SalesReason"])
     dimSalesTerritory = transform.transformDimSalesTerritory(sales["SalesTerritory"])
     factCurrencyRate = transform.transformFactCurrencyRate(sales)
-    factInternetSales = transform.transformFactInternetSales( #INCOMPLETO
-        production["Product"], 
-        sales["SalesOrderDetail"], 
-        sales["SalesOrderHeader"]
+    factResellerSales = transform.transformFactResellerSales(
+        production["Product"],
+        sales["SalesOrderDetail"],
+        sales["SalesOrderHeader"],
+        dimCurrency,
+        sales["CurrencyRate"],
+        dimReseller,
+        sales["Customer"], 
+        sales["SalesPerson"], 
+        dimEmployee, 
+        sales["Store"], 
+        humanResources["Employee"]
+    
     )
     factInternetSalesReason = transform.transformFactInternetSalesReason(sales)
-    factResellerSales = "FALTA HACER" #transform.transformFactResellerSales(tablas)
+    factInternetSales =  transform.transformFactInternetSales(
+        production["Product"],
+        sales["SalesOrderDetail"],
+        sales["SalesOrderHeader"],
+        sales["Customer"],
+        dimCustomer,
+        dimCurrency,
+        sales["CurrencyRate"],
+        person["StateProvince"],
+        sales["SalesTaxRate"]
+    )
     newFactCurrencyRate = transform.transformNewFactCurrencyRate(sales)
     
     #Transform - Crear columnas que son llaver foráneas
     dimCustomer = transform.fkDimCustomer(dimCustomer, dimGeography)
+    
+    
+
+
     
     #Load
     load.load(dim_ips, olap, 'dim_ips', True)

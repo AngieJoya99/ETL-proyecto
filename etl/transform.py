@@ -851,7 +851,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales = factInternetSales.merge(
         salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
                             "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
-                            "Freight", "CurrencyRateID"]],
+                            "Freight", "CurrencyRateID", "TaxAmt"]],
         on="SalesOrderID",
         how="left"
     ).rename(columns={
@@ -893,16 +893,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
         how="left"
     ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
 
-    factInternetSales = factInternetSales.merge(
-        stateProvince[["StateProvinceID", "TerritoryID"]],
-        left_on="SalesTerritoryKey",
-        right_on="TerritoryID",
-        how="left"
-    ).drop(columns=["TerritoryID"]).merge(
-        salesTaxRate[["StateProvinceID", "TaxRate"]],
-        on="StateProvinceID",
-        how="left"
-    ).drop(columns=["StateProvinceID"])
+    
 
     def transforma_date(date):
         if pd.isna(date):
@@ -916,9 +907,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
     factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
     factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
-    factInternetSales["TaxAmt"] = (factInternetSales["ExtendedAmount"] - factInternetSales["DiscountAmount"]) * (factInternetSales["TaxRate"] / 100)
 
-    factInternetSales = factInternetSales.drop(columns=["TaxRate"])
     
 
     column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey", "PromotionKey", "CurrencyKey",
@@ -960,8 +949,115 @@ def transformFactInternetSalesReason(sales):
 # UnitPriceDiscountPct, DiscountAmount, ProductStandardCost, TotalProductCost
 # SalesAmount, TaxAmt, Freight, CarrierTrackingNumber
 # CustomerPONumber, OrderDate, DueDate, ShipDate
-def transformFactResellerSales(tablas):
-    factResellerSales = pd.DataFrame()
+def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimCurrency, currencyRate, dimReseller, customer, salesPerson, dimEmployee, store, employee):
+    salesOrderDetail = salesOrderDetail.copy()
+    salesOrderDetail["SalesOrderLineNumber"] = (
+        salesOrderDetail.groupby("SalesOrderID").cumcount() + 1
+    )
+
+    # Start building factResellerSales from salesOrderDetail
+    factResellerSales = salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", 
+                                            "SalesOrderLineNumber", "OrderQty", "UnitPrice", 
+                                            "UnitPriceDiscount", "LineTotal", "CarrierTrackingNumber"]].rename(
+        columns={"ProductID": "ProductKey"}
+    )
+
+
+    # Now merge with salesOrderHeader
+    factResellerSales = factResellerSales.merge(
+        salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
+                            "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
+                            "Freight", "CurrencyRateID", "TaxAmt"]],
+        on="SalesOrderID",
+        how="left"
+    ).rename(columns={
+        "SpecialOfferID": "PromotionKey", 
+        "OrderQty": "OrderQuantity", 
+        "UnitPriceDiscount": "UnitPriceDiscountPct", 
+        "TerritoryID": "SalesTerritoryKey", 
+        "LineTotal": "SalesAmount"
+    }).drop(columns=["SalesOrderID"])
+
+    
+    factResellerSales = factResellerSales.merge(
+        dimReseller[["ResellerKey", "ResellerAlternateKey"]],
+        left_on="CustomerID",
+        right_on="ResellerKey",
+        how="left"
+    ).drop(columns=["CustomerID"])
+
+    
+
+    factResellerSales = factResellerSales[factResellerSales["ResellerKey"].notna()]
+    
+    factResellerSales = factResellerSales.merge(
+        product[["ProductID", "StandardCost"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).rename(columns={"StandardCost": "ProductStandardCost"}) \
+    .drop(columns=["ProductID"])
+    
+    factResellerSales = factResellerSales.merge(
+        currencyRate[["CurrencyRateID", "ToCurrencyCode"]],
+        on="CurrencyRateID",
+        how="left"
+    ).drop(columns=["CurrencyRateID"]).merge(
+        dimCurrency[["CurrencyAlternateKey", "CurrencyKey"]],
+        left_on="ToCurrencyCode",
+        right_on="CurrencyAlternateKey",
+        how="left"
+    ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
+    
+    factResellerSales = factResellerSales.merge(
+        customer[["CustomerID", "StoreID"]],
+        left_on="ResellerKey",
+        right_on="CustomerID",
+        how="left"
+    ).drop(columns=["CustomerID"]).merge(
+        store[["SalesPersonID", "BusinessEntityID"]],
+        left_on="StoreID",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]).merge(
+        salesPerson[["BusinessEntityID"]],
+        left_on="SalesPersonID",
+        right_on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["SalesPersonID"]).merge(
+        employee[["BusinessEntityID", "NationalIDNumber"]],
+        on="BusinessEntityID",
+        how="left"
+    ).drop(columns=["BusinessEntityID"]).merge(
+        dimEmployee[["EmployeeKey", "EmployeeNationalIDAlternateKey"]],
+        left_on="NationalIDNumber",
+        right_on="EmployeeNationalIDAlternateKey",
+        how="left"
+    ).drop(columns=["NationalIDNumber", "EmployeeNationalIDAlternateKey"])
+    
+
+    def transforma_date(date):
+        if pd.isna(date):
+            return None
+        return int(date.strftime("%Y%m%d"))
+    
+    factResellerSales["OrderDateKey"] = factResellerSales["OrderDate"].apply(transforma_date).astype("Int64")
+    factResellerSales["DueDateKey"] = factResellerSales["DueDate"].apply(transforma_date).astype("Int64")
+    factResellerSales["ShipDateKey"] = factResellerSales["ShipDate"].apply(transforma_date).astype("Int64")
+    
+    factResellerSales["ExtendedAmount"] = factResellerSales["UnitPrice"] * factResellerSales["OrderQuantity"]
+    factResellerSales["DiscountAmount"] = factResellerSales["ExtendedAmount"] * factResellerSales["UnitPriceDiscountPct"]
+    factResellerSales["TotalProductCost"] = factResellerSales["ProductStandardCost"] * factResellerSales["OrderQuantity"]
+
+    
+
+    column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "ResellerKey", "EmployeeKey","PromotionKey", "CurrencyKey",
+        "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
+        "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
+        "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
+    
+    factResellerSales = factResellerSales[column_order]
+    
     return factResellerSales
 
 #Atributos: AverageRate, CurrencyID, CurrencyDate, EndOfDayRate
