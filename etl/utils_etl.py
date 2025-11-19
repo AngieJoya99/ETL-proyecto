@@ -40,10 +40,8 @@ def cargaSegura(engine, schema, table):
         return pd.DataFrame()
 
     # Cargar solo columnas válidas
-    query = (
-        f'SELECT {", ".join([f"""\"{c}\"""" for c in columnas_ok])} '
-        f'FROM "{schema}"."{table}"'
-    )
+    columnas_quoted = ', '.join([f'"{c}"' for c in columnas_ok])
+    query = f'SELECT {columnas_quoted} FROM "{schema}"."{table}"'
 
     df = pd.read_sql_query(query, con=engine)
     return df
@@ -245,10 +243,3 @@ def extractStoreDemographics(engine):
     """
     
     return pd.read_sql_query(query, con=engine)
-
-
-
-
-
-
-

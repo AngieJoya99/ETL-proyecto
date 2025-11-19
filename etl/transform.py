@@ -97,11 +97,23 @@ def transformDimCustomer(person, sales):
     ).rename(columns={'AccountNumber_y': 'CustomerAlternateKey'})
 
     
+    # Renombrar columnas para que coincidan con DimCustomer
+    dimCustomer = dimCustomer.rename(columns={
+        'AddressLine1': 'AddressLine1',
+        'AddressLine2': 'AddressLine2',
+        'PhoneNumber': 'Phone',
+        'AddressID': 'GeographyKey'
+    })
+    
     dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'StoreID', 'TerritoryID', 
        'ModifiedDate_x', 'AddressTypeID', 'PersonID',
        'rowguid', 'ModifiedDate_y', 'AccountNumber_x',
-       'ModifiedDate',       
-    ])
+       'ModifiedDate', 'HomeOwnerFlag'      
+    ], errors='ignore')
+    
+    # Asegurar que HouseOwnerFlag existe (en lugar de HomeOwnerFlag)
+    if 'HouseOwnerFlag' not in dimCustomer.columns:
+        dimCustomer['HouseOwnerFlag'] = None
     
     return dimCustomer
 
