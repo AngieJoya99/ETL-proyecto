@@ -123,7 +123,7 @@ DimEmployee:
       StartDate DATE,
       EndDate DATE,
       Status NVARCHAR(25),
-      FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey)
+      FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey),
       FOREIGN KEY (ParentEmployeeKey) REFERENCES DimEmployee(EmployeeKey)
     );
 
@@ -229,8 +229,6 @@ DimReseller:
       AddressLine2 NVARCHAR(60),
       AnnualSales MONEY,
       BankName NVARCHAR(50),
-      MinPaymentType TINYINT,
-      MinPaymentAmount MONEY,
       AnnualRevenue MONEY,
       YearOpened INT,
       FOREIGN KEY (GeographyKey) REFERENCES DimGeography(GeographyKey)

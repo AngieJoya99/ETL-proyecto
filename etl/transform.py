@@ -792,6 +792,11 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
                     "NumberEmployees", "OrderFrequency", "OrderMonth", "FirstOrderYear", "LastOrderYear", 
                     "ProductLine", "AddressLine1", "AddressLine2", "AnnualSales", "BankName", 
                     "AnnualRevenue", "YearOpened"]
+    # Eliminar columnas que no están en column_order
+    for col in list(dimReseller.columns):
+        if col not in column_order:
+            dimReseller = dimReseller.drop(columns=[col])
+            
     dimReseller = dimReseller[column_order]
     dimReseller = dimReseller.drop_duplicates(subset=["ResellerKey"])
 
