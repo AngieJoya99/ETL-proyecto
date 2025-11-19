@@ -49,7 +49,7 @@ DimCustomer:
       Suffix NVARCHAR(10),
       Gender NVARCHAR(1),
       EmailAddress NVARCHAR(50),
-      YearlyIncome MONEY,
+      YearlyIncome VARCHAR(30),
       TotalChildren INT,
       NumberChildrenAtHome INT,
       EnglishEducation NVARCHAR(40),
@@ -119,7 +119,7 @@ DimEmployee:
       SickLeaveHours SMALLINT,
       CurrentFlag NCHAR(1),
       SalesPersonFlag NCHAR(1),
-      DepartmentName NVARCHAR(25),
+      DepartmentName NVARCHAR(50),
       StartDate DATE,
       EndDate DATE,
       Status NVARCHAR(25),
@@ -246,11 +246,12 @@ DimSalesReason:
 FactCurrencyRate:
   create: |
     CREATE TABLE FactCurrencyRate (
-      CurrencyRateKey INT  PRIMARY KEY,
+      Date DATETIME,
       AverageRate FLOAT NOT NULL,
       EndOfDayRate FLOAT NOT NULL,
       DateKey INT NOT NULL,
       CurrencyKey INT NOT NULL,
+      CONSTRAINT PK_FactCurrencyRate PRIMARY KEY (CurrencyKey, DateKey),
       FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey),
       FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey)
     );
@@ -309,7 +310,7 @@ FactInternetSalesReason:
       FOREIGN KEY (SalesOrderNumber, SalesOrderLineNumber)
         REFERENCES FactInternetSales(SalesOrderNumber, SalesOrderLineNumber),
 
-      FOREIGN KEY (SalesReasonKey)
+      --FOREIGN KEY (SalesReasonKey)
         REFERENCES DimSalesReason(SalesReasonKey)
     );
 
@@ -360,14 +361,13 @@ FactResellerSales:
 NewFactCurrencyRate:
   create: |
     CREATE TABLE NewFactCurrencyRate (
-      NewCurrencyRateKey INT  PRIMARY KEY,
       AverageRate FLOAT NOT NULL,
       CurrencyID NVARCHAR(3) NOT NULL,
       CurrencyDate DATE NOT NULL,
       EndOfDayRate FLOAT NOT NULL,
       CurrencyKey INT NOT NULL,
       DateKey INT NOT NULL,
-
+      CONSTRAINT PK_NewFactCurrencyRate PRIMARY KEY (CurrencyKey, DateKey),
       FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey),
       FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey)
     );

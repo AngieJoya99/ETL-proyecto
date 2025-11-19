@@ -839,6 +839,7 @@ def transformDimSalesTerritory(SalesTerritory):
 
 
     return dimSalesTerritory
+
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
 # Date
 def transformFactCurrencyRate(sales):
@@ -848,7 +849,7 @@ def transformFactCurrencyRate(sales):
     
     factCurrencyRate["DateKey"] = factCurrencyRate["CurrencyRateDate"].dt.strftime("%Y%m%d")
     
-    factCurrencyRate.rename(columns={
+    factCurrencyRate = factCurrencyRate.rename(columns={
       'CurrencyRateDate' : 'Date'
     })
     
@@ -898,7 +899,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
         dimCustomer[["CustomerAlternateKey", "CustomerKey"]],
         left_on="AccountNumber",
         right_on="CustomerAlternateKey",
-        how="left"
+        how="inner"
     ).drop(columns=["CustomerAlternateKey", "AccountNumber"])
     
     factInternetSales = factInternetSales.merge(
@@ -912,7 +913,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales = factInternetSales.merge(
         currencyRate[["CurrencyRateID", "ToCurrencyCode"]],
         on="CurrencyRateID",
-        how="left"
+        how="inner"
     ).drop(columns=["CurrencyRateID"]).merge(
         dimCurrency[["CurrencyAlternateKey", "CurrencyKey"]],
         left_on="ToCurrencyCode",
@@ -954,7 +955,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
         "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
     
     factInternetSales = factInternetSales[column_order]
-    
+    factInternetSales = factInternetSales.drop_duplicates(subset=['SalesOrderNumber', 'SalesOrderLineNumber'])
     return factInternetSales
 
 
@@ -1114,9 +1115,15 @@ def fkDimCustomer(dimCustomer, dimGeography, person):
 
     # Limpiar
     dimCustomer = dimCustomer.drop(columns=[
-        "merge_key", "PostalCode", "City", "StateProvinceID", "PostalCode", "StateProvinceCode"
+        "merge_key", "PostalCode", "City", "StateProvinceID", 
+        "PostalCode", "StateProvinceCode", "AddressID"
         ])
 
+    dimCustomer = dimCustomer.rename(columns={
+        'HomeOwnerFlag' : 'HouseOwnerFlag',
+        'PhoneNumber' : 'Phone'
+    })
+    
     return dimCustomer
 
 
@@ -1131,13 +1138,15 @@ def fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate):
     #Añadir CurrencyKey
     currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
     newFactCurrencyRate = newFactCurrencyRate.merge(currency, left_on='CurrencyID', right_on='CurrencyAlternateKey', how='left')
-    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyID', 'CurrencyAlternateKey'])
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyAlternateKey'])
     
     #Añadir DateKey
     date = dimDate[["DateKey", "FullDateAlternateKey"]].copy()
     newFactCurrencyRate['CurrencyDate'] = pd.to_datetime(newFactCurrencyRate['CurrencyDate'])
+    newFactCurrencyRate['CurrencyDate'] = newFactCurrencyRate['CurrencyDate'].dt.date
     date['FullDateAlternateKey'] = pd.to_datetime(date['FullDateAlternateKey'])
+    date['FullDateAlternateKey'] = date['FullDateAlternateKey'].dt.date
     newFactCurrencyRate = newFactCurrencyRate.merge(date, left_on='CurrencyDate', right_on='FullDateAlternateKey', how='left')
-    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['CurrencyDate', 'FullDateAlternateKey'])
+    newFactCurrencyRate = newFactCurrencyRate.drop(columns=['FullDateAlternateKey'])
     
     return newFactCurrencyRate

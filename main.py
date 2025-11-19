@@ -96,7 +96,7 @@ dimReseller = transform.transformDimReseller(
     person["Address"], 
     person["BusinessEntityAddress"], 
     utils_etl.extractStoreDemographics(oltp),
-    dimGeography,
+    dimGeography.copy(),
     person["StateProvince"]
 )
 dimSalesReason = transform.transformDimSalesReason(sales["SalesReason"])
@@ -111,8 +111,8 @@ factInternetSales = transform.transformFactInternetSales(
     sales["SalesOrderDetail"], 
     sales["SalesOrderHeader"],        
     sales["Customer"], 
-    dimCustomer, 
-    dimCurrency, 
+    dimCustomer.copy(), 
+    dimCurrency.copy(), 
     sales["CurrencyRate"], 
     person["StateProvince"], 
     sales["SalesTaxRate"]
@@ -124,77 +124,42 @@ factResellerSales = transform.transformFactResellerSales(
     production["Product"], 
     sales["SalesOrderDetail"], 
     sales["SalesOrderHeader"], 
-    dimCurrency, 
+    dimCurrency.copy(), 
     sales["CurrencyRate"], 
-    dimReseller
+    dimReseller.copy()
 )
 print("Transformacion factResellerSales Finalizada")
 newFactCurrencyRate = transform.transformNewFactCurrencyRate(sales)
 print("Transformacion newFactCurrencyRate Finalizada")
 
 #Transform - Crear columnas que son llaver foráneas
-dimCustomer = transform.fkDimCustomer(dimCustomer, dimGeography,person)
+dimCustomer = transform.fkDimCustomer(dimCustomer, dimGeography.copy(),person)
 factCurrencyRate = transform.fkFactCurrencyRate(factCurrencyRate, dimCurrency)
 newFactCurrencyRate = transform.fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate)
 print("Transformacion hechos Finalizada")
 
 #Load
 
-# load.loadDimCurrency(dimCurrency,olap)
-# print("Carga dimCurrency Finalizada")
-# load.loadDimCustomer(dimCustomer, olap)
-# print("Carga dimCustomer Finalizada")
-# load.loadDimDate(dimDate, olap)
-# print("Carga dimDate Finalizada")
-# load.loadDimEmployee(dimEmployee, olap)
-# print("Carga dimEmployee Finalizada")
-# load.loadDimGeography(dimGeography, olap)
-# print("Carga dimGeography Finalizada")
-# load.loadDimProduct(dimProduct, olap)
-# print("Carga dimProduct Finalizada")
-# load.loadDimProductCategory(dimProductCategory, olap)
-# print("Carga dimProductCategory Finalizada")
-# load.loadDimProductSubcategory(dimProductSubcategory, olap)
-# print("Carga dimProductSubcategory Finalizada")
-# load.loadDimPromotion(dimPromotion, olap)
-# print("Carga dimPromotion Finalizada")
-# load.loadDimReseller(dimReseller, olap)
-# print("Carga dimReseller Finalizada")
-# load.loadDimSalesReason(dimSalesReason, olap)
-# print("Carga dimSalesReason Finalizada")
-# load.loadDimSalesTerritory(dimSalesTerritory, olap)
-
-# load.loadFactCurrencyRate(factCurrencyRate, olap)
-# print("Carga factCurrencyRate Finalizada")
-# load.loadFactInternetSales(factInternetSales, olap)
-# print("Carga factInternetSales Finalizada")
-# load.loadFactInternetSalesReason(factInternetSalesReason, olap)
-# print("Carga factInternetSalesReason Finalizada")
-# load.loadFactResellerSales(factResellerSales, olap)
-# print("Carga factResellerSales Finalizada")
-# load.loadNewFactCurrencyRate(newFactCurrencyRate, olap)
-# print("Carga newFactCurrencyRate Finalizada")
 
 
 # CARGA DE DIMENSIONES
-load.load(dimCurrency, olap, 'DimCurrency', True)
-print("Carga dimCurrency Finalizada")
-
-print(dimCustomer.columns)
-load.load(dimCustomer, olap, 'DimCustomer', True)
-print("Carga dimCustomer Finalizada")
-
 load.load(dimDate, olap, 'DimDate', True)
 print("Carga dimDate Finalizada")
 
-load.load(dimEmployee, olap, 'DimEmployee', True)
-print("Carga dimEmployee Finalizada")
+load.load(dimCurrency, olap, 'DimCurrency', True)
+print("Carga dimCurrency Finalizada")
+
+load.load(dimSalesTerritory, olap, 'DimSalesTerritory', True)
+print("Carga dimSalesTerritory Finalizada")
 
 load.load(dimGeography, olap, 'DimGeography', True)
 print("Carga dimGeography Finalizada")
 
-load.load(dimProduct, olap, 'DimProduct', True)
-print("Carga dimProduct Finalizada")
+load.load(dimSalesReason, olap, 'DimSalesReason', True)
+print("Carga dimSalesReason Finalizada")
+
+load.load(dimPromotion, olap, 'DimPromotion', True)
+print("Carga dimPromotion Finalizada")
 
 load.load(dimProductCategory, olap, 'DimProductCategory', True)
 print("Carga dimProductCategory Finalizada")
@@ -202,32 +167,35 @@ print("Carga dimProductCategory Finalizada")
 load.load(dimProductSubcategory, olap, 'DimProductSubcategory', True)
 print("Carga dimProductSubcategory Finalizada")
 
-load.load(dimPromotion, olap, 'DimPromotion', True)
-print("Carga dimPromotion Finalizada")
+load.load(dimProduct, olap, 'DimProduct', True)
+print("Carga dimProduct Finalizada")
+
+load.load(dimCustomer, olap, 'DimCustomer', True)
+print("Carga dimCustomer Finalizada")
+
+load.load(dimEmployee, olap, 'DimEmployee', True)
+print("Carga dimEmployee Finalizada")
 
 load.load(dimReseller, olap, 'DimReseller', True)
 print("Carga dimReseller Finalizada")
-
-load.load(dimSalesReason, olap, 'DimSalesReason', True)
-print("Carga dimSalesReason Finalizada")
-
-load.load(dimSalesTerritory, olap, 'DimSalesTerritory', True)
-print("Carga dimSalesTerritory Finalizada")
 
 # CARGA DE TABLAS DE HECHOS
 load.load(factCurrencyRate, olap, 'FactCurrencyRate', True)
 print("Carga factCurrencyRate Finalizada")
 
+load.load(newFactCurrencyRate, olap, 'NewFactCurrencyRate', True)
+print("Carga newFactCurrencyRate Finalizada")
+
+print(factInternetSales.head())
 load.load(factInternetSales, olap, 'FactInternetSales', True)
 print("Carga factInternetSales Finalizada")
 
+print(factInternetSalesReason.head())
 load.load(factInternetSalesReason, olap, 'FactInternetSalesReason', True)
 print("Carga factInternetSalesReason Finalizada")
 
+print(factResellerSales.head())
 load.load(factResellerSales, olap, 'FactResellerSales', True)
 print("Carga factResellerSales Finalizada")
-
-load.load(newFactCurrencyRate, olap, 'NewFactCurrencyRate', True)
-print("Carga newFactCurrencyRate Finalizada")
 
 print('success all tables loaded')
