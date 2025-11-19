@@ -1,5 +1,5 @@
 import pandas as pd
-import utils_etl
+from . import utils_etl
 from sqlalchemy.engine import Engine
 import pandas as pd
 from sqlalchemy import create_engine, inspect

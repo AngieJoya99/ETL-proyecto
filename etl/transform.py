@@ -8,9 +8,7 @@ import pandas as pd
 from mlxtend.frequent_patterns import apriori
 from mlxtend.preprocessing import TransactionEncoder
 from pandas import DataFrame
-import utils_etl
-import utils_etl
-import utils_etl
+from . import utils_etl
 
 #Las dimensiones a crear son: DimCurrency, DimCustomer, DimDate, DimEmployee, DimGeography, DimProduct,
 #DimProductCategory, DimProductSubcategory, DimPromotion, DimReseller, DimSalesReason, DimSalesTerritory
@@ -38,7 +36,7 @@ def transformDimCurrency(currency):
 #EnglishOccupation, SpanishOccupation, FrenchOccupation, HouseOwnerFlag, NumberCarsOwned, 
 # AddressLine1, AddressLine2, Phone, DateFirstPurchase, CommuteDistance
 def transformDimCustomer(person, sales):
-    #Tipos IN = Individual Customer    
+    #Tipos IN = Individual Customer
     dimCustomer = person["Person"][person["Person"]["PersonType"] == 'IN'].copy()
     dimCustomer = dimCustomer.drop(columns=[
         'PersonType', 'EmailPromotion', 'AdditionalContactInfo', 'ModifiedDate', 'rowguid'
@@ -99,10 +97,10 @@ def transformDimCustomer(person, sales):
     ).rename(columns={'AccountNumber_y': 'CustomerAlternateKey'})
 
     
-    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'PersonID', 'StoreID', 'TerritoryID',
-       'AccountNumber', 'ModifiedDate_x', 'AddressID', 'AddressTypeID',
-       'rowguid', 'ModifiedDate_y', 'City',
-       'StateProvinceID', 'ModifiedDate'        
+    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'StoreID', 'TerritoryID', 
+       'ModifiedDate_x', 'AddressTypeID', 'PersonID',
+       'rowguid', 'ModifiedDate_y', 'AccountNumber_x',
+       'ModifiedDate',       
     ])
     
     return dimCustomer
@@ -375,8 +373,7 @@ def transformDimProduct(product, description, name_translated, ProductModel, Pro
         "ListPrice", "Size", "Weight", "DaysToManufacture", "ProductLine", "DealerPrice",
         "Class", "Style", "EnglishDescription", "FrenchDescription", "ChineseDescription",
         "ArabicDescription", "HebrewDescription", "ThaiDescription", "GermanDescription",
-        "JapaneseDescription", "TurkishDescription",  "Status",
-        "ModelName"
+        "JapaneseDescription", "TurkishDescription",  "Status"
     ])
     
 
@@ -669,12 +666,10 @@ def transformDimPromotion(specialOffer):
 #    person["Address"],
 #    person["BusinessEntityAddress"]  
 
-def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress, personBusinessEntityAddress, demographics):
+def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress, personBusinessEntityAddress, demographics, dimGeography, stateProvince):
     dimReseller = pd.DataFrame(columns=[
-        "ResellerKey", "GeographyKey", "ResellerAlternateKey", 
-         "OrderFrequency", 
-        "OrderMonth", "FirstOrderYear", "LastOrderYear",    "MinPaymentType", "MinPaymentAmount", 
-         "IDStore"
+        "ResellerKey", "ResellerAlternateKey", 
+         "OrderFrequency", "OrderMonth", "FirstOrderYear", "LastOrderYear", "IDStore"
     ])
 
     #demographics = utils_etl.extractStoreDemographics(oltp)
@@ -690,7 +685,7 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
 
     ####
 
-    customer = customer[customer["PersonID"].isna()]
+    customer = customer[customer["StoreID"].notna()]
 
 
     dimReseller["ResellerKey"] = customer["CustomerID"]
@@ -724,10 +719,30 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
     ).drop(columns=["BusinessEntityID"])
 
     dimReseller = dimReseller.merge(
-        personAddress[["AddressID", "AddressLine1", "AddressLine2"]],
+        personAddress[["AddressID", "AddressLine1", "AddressLine2", "PostalCode",  "City", "StateProvinceID"]],
         on="AddressID",
         how="left"
-    ).drop(columns=["AddressID"])
+    )
+
+    # GeographyKey
+    # dimReseller = dimReseller.merge(
+    #     dimGeography[["GeographyKey", "PostalCode"]],
+    #     left_on="PostalCodeReseller",
+    #     right_on="PostalCode",
+    #     how="left"
+    # )
+
+    dimReseller = dimReseller.merge(
+        stateProvince[["StateProvinceID", "StateProvinceCode", "CountryRegionCode"]],
+        on="StateProvinceID",
+        how="left"
+    )
+
+    dimReseller = dimReseller.merge(
+        dimGeography[["GeographyKey", "PostalCode", "City", "StateProvinceCode", "CountryRegionCode"]],
+        on=["PostalCode", "City", "StateProvinceCode", "CountryRegionCode"],
+        how="left"
+    )
 
     # Tipo de negocio 
     codeBusiness = {"BM": "Value Added Reseller", "BS": "Specialty Bike Shop", "OS": "Warehouse"}
@@ -757,19 +772,26 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
 
     # Frecuency
     
+    conditions = [
+    dimReseller["OrderFrequency"] >= 20,
+    dimReseller["OrderFrequency"] >= 10
+    ]
 
+    values = ["A", "Q"]
+
+    dimReseller["OrderFrequency"] = np.select(conditions, values, default="S" )
 
 
     # Pasar las columnas a int
-    cols_int = ["NumberEmployees", "YearOpened",  "OrderMonth", "FirstOrderYear", "LastOrderYear", "OrderFrequency"]
+    cols_int = ["NumberEmployees", "YearOpened",  "OrderMonth", "FirstOrderYear", "LastOrderYear"]
 
     for c in cols_int:
         dimReseller[c] = dimReseller[c].astype("Int64")
     
     column_order = ["ResellerKey", "GeographyKey", "ResellerAlternateKey", "Phone", "BusinessType", "ResellerName", 
                     "NumberEmployees", "OrderFrequency", "OrderMonth", "FirstOrderYear", "LastOrderYear", 
-                    "ProductLine", "AddressLine1", "AddressLine2", "AnnualSales", "BankName", "MinPaymentType", 
-                    "MinPaymentAmount", "AnnualRevenue", "YearOpened"]
+                    "ProductLine", "AddressLine1", "AddressLine2", "AnnualSales", "BankName", 
+                    "AnnualRevenue", "YearOpened"]
     dimReseller = dimReseller[column_order]
     dimReseller = dimReseller.drop_duplicates(subset=["ResellerKey"])
 
@@ -945,7 +967,7 @@ def transformFactInternetSalesReason(sales):
     orderDetails["SalesOrderLineNumber"] =  (
         orderDetails.groupby('SalesOrderID').cumcount() + 1
     )
-
+    
     factInternetSalesReason = factInternetSalesReason.merge(orderDetails, on='SalesOrderID', how='inner')
     factInternetSalesReason = factInternetSalesReason.drop(columns=['SalesOrderDetailID'])
     factInternetSalesReason["SalesOrderID"] = 'SO' + factInternetSalesReason["SalesOrderID"].astype(str)
@@ -960,8 +982,90 @@ def transformFactInternetSalesReason(sales):
 # UnitPriceDiscountPct, DiscountAmount, ProductStandardCost, TotalProductCost
 # SalesAmount, TaxAmt, Freight, CarrierTrackingNumber
 # CustomerPONumber, OrderDate, DueDate, ShipDate
-def transformFactResellerSales(tablas):
-    factResellerSales = pd.DataFrame()
+def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimCurrency, currencyRate, dimReseller):
+    salesOrderDetail = salesOrderDetail.copy()
+    salesOrderDetail["SalesOrderLineNumber"] = (
+        salesOrderDetail.groupby("SalesOrderID").cumcount() + 1
+    )
+
+    # Start building factResellerSales from salesOrderDetail
+    factResellerSales = salesOrderDetail[["ProductID", "SalesOrderID", "SpecialOfferID", 
+                                            "SalesOrderLineNumber", "OrderQty", "UnitPrice", 
+                                            "UnitPriceDiscount", "LineTotal", "CarrierTrackingNumber"]].rename(
+        columns={"ProductID": "ProductKey"}
+    )
+
+
+    # Now merge with salesOrderHeader
+    factResellerSales = factResellerSales.merge(
+        salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
+                            "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
+                            "Freight", "CurrencyRateID", "TaxAmt"]],
+        on="SalesOrderID",
+        how="left"
+    ).rename(columns={
+        "SpecialOfferID": "PromotionKey", 
+        "OrderQty": "OrderQuantity", 
+        "UnitPriceDiscount": "UnitPriceDiscountPct", 
+        "TerritoryID": "SalesTerritoryKey", 
+        "LineTotal": "SalesAmount"
+    }).drop(columns=["SalesOrderID"])
+
+    
+    factResellerSales = factResellerSales.merge(
+        dimReseller[["ResellerKey", "ResellerAlternateKey"]],
+        left_on="CustomerID",
+        right_on="ResellerKey",
+        how="left"
+    ).drop(columns=["CustomerID"])
+
+    
+
+    factResellerSales = factResellerSales[factResellerSales["ResellerKey"].notna()]
+    
+    factResellerSales = factResellerSales.merge(
+        product[["ProductID", "StandardCost"]],
+        left_on="ProductKey",
+        right_on="ProductID",
+        how="left"
+    ).rename(columns={"StandardCost": "ProductStandardCost"}) \
+    .drop(columns=["ProductID"])
+    
+    factResellerSales = factResellerSales.merge(
+        currencyRate[["CurrencyRateID", "ToCurrencyCode"]],
+        on="CurrencyRateID",
+        how="left"
+    ).drop(columns=["CurrencyRateID"]).merge(
+        dimCurrency[["CurrencyAlternateKey", "CurrencyKey"]],
+        left_on="ToCurrencyCode",
+        right_on="CurrencyAlternateKey",
+        how="left"
+    ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
+
+    
+
+    def transforma_date(date):
+        if pd.isna(date):
+            return None
+        return int(date.strftime("%Y%m%d"))
+    
+    factResellerSales["OrderDateKey"] = factResellerSales["OrderDate"].apply(transforma_date).astype("Int64")
+    factResellerSales["DueDateKey"] = factResellerSales["DueDate"].apply(transforma_date).astype("Int64")
+    factResellerSales["ShipDateKey"] = factResellerSales["ShipDate"].apply(transforma_date).astype("Int64")
+    
+    factResellerSales["ExtendedAmount"] = factResellerSales["UnitPrice"] * factResellerSales["OrderQuantity"]
+    factResellerSales["DiscountAmount"] = factResellerSales["ExtendedAmount"] * factResellerSales["UnitPriceDiscountPct"]
+    factResellerSales["TotalProductCost"] = factResellerSales["ProductStandardCost"] * factResellerSales["OrderQuantity"]
+
+    
+
+    column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "PromotionKey", "CurrencyKey",
+        "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
+        "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
+        "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
+    
+    factResellerSales = factResellerSales[column_order]
+    
     return factResellerSales
 
 #Atributos: AverageRate, CurrencyID, CurrencyDate, EndOfDayRate
@@ -978,11 +1082,38 @@ def transformNewFactCurrencyRate(sales):
     
     return newFactCurrencyRate
 
-def fkDimCustomer(dimCustomer, dimGeography):
-    llave = dimGeography[["GeographyKey", "PostalCode"]].copy()
-    dimCustomer = dimCustomer.merge(llave, on='PostalCode', how='left')
-    dimCustomer = dimCustomer.drop(columns=['PostalCode'])
+def fkDimCustomer(dimCustomer, dimGeography, person):
+    stateProvice = person["StateProvince"][["StateProvinceID", "StateProvinceCode"]].copy()
+    
+    dimCustomer = dimCustomer.merge(stateProvice, on="StateProvinceID", how="left")
+    
+    # Crear llave compuesta en ambos
+    dimCustomer["merge_key"] = (
+        dimCustomer["City"].astype(str).str.strip() + "|" +
+        dimCustomer["StateProvinceCode"].astype(str).str.strip() + "|" +
+        dimCustomer["PostalCode"].astype(str).str.strip()
+    )
+
+    dimGeography["merge_key"] = (
+        dimGeography["City"].astype(str).str.strip() + "|" +
+        dimGeography["StateProvinceCode"].astype(str).str.strip() + "|" +
+        dimGeography["PostalCode"].astype(str).str.strip()
+    )
+
+    # Merge con la llave compuesta
+    dimCustomer = dimCustomer.merge(
+        dimGeography[["GeographyKey", "merge_key"]],
+        on="merge_key",
+        how="left"
+    )
+
+    # Limpiar
+    dimCustomer = dimCustomer.drop(columns=[
+        "merge_key", "PostalCode", "City", "StateProvinceID", "PostalCode", "StateProvinceCode"
+        ])
+
     return dimCustomer
+
 
 def fkFactCurrencyRate(factCurrencyRate, dimCurrency):
     currency = dimCurrency[["CurrencyKey", "CurrencyAlternateKey"]].copy()
