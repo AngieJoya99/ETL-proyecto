@@ -28,6 +28,16 @@ def transformDimCurrency(currency):
     dimCurrency["CurrencyName"] = currency["Name"] 
     dimCurrency["CurrencyKey"] = range(1, len(dimCurrency) + 1)
     
+    # Creamos la fila "Unknown"
+    unknown_currency = pd.DataFrame({
+        "CurrencyKey": [0],
+        "CurrencyAlternateKey": ["UNK"],
+        "CurrencyName": ["Unknown"]
+    })
+
+    # Concatenar con dimCurrency existente
+    dimCurrency = pd.concat([dimCurrency, unknown_currency], ignore_index=True)
+
     return dimCurrency
 
 #Atributos: CustomerKey, GeographyKey, CustomerAlternateKey, Title, FirstName, MiddleName
@@ -325,6 +335,25 @@ def transformDimGeography(sales, person):
     dimGeography["GeographyKey"] = range(1, len(dimGeography) + 1)
     dimGeography["IpAddressLocator"] = utils_etl.generate_unique_ip(dimGeography["GeographyKey"])
     dimGeography = dimGeography.drop(columns=['StateProvinceID'])
+    
+    # Creamos la fila "Unknown"
+    unknown_geography = pd.DataFrame({
+        "GeographyKey": [0],
+        "City": ["Unknown"],
+        "StateProvinceCode": ["UNK"],
+        "StateProvinceName": ["Unknown"],
+        "CountryRegionCode": ["UNK"],
+        "EnglishCountryRegionName": ["Unknown"],
+        "SpanishCountryRegionName": ["Unknown"],
+        "FrenchCountryRegionName": ["Unknown"],
+        "PostalCode": ["Unknown"],
+        "SalesTerritoryKey": [0],  # Asegúrate de tener SalesTerritoryKey=0 en DimSalesTerritory
+        "IpAddressLocator": ["Unknown"]
+    })
+
+    # Concatenar con dimGeography existente
+    dimGeography = pd.concat([dimGeography, unknown_geography], ignore_index=True)
+
     return dimGeography
 
 #Atributos: ProductKey, ProductAlternateKey, ProductSubcategoryKey, WeightUnitMeasureCode
@@ -799,6 +828,31 @@ def transformDimReseller(customer, salesOrderHeader, personPhone, personAddress,
             
     dimReseller = dimReseller[column_order]
     dimReseller = dimReseller.drop_duplicates(subset=["ResellerKey"])
+    
+    # DataFrame de ejemplo para unknown Reseller
+    unknown_reseller = pd.DataFrame({
+        "ResellerKey": [0],
+        "GeographyKey": [0],  # Asegúrate de tener GeographyKey=0 en DimGeography también
+        "ResellerAlternateKey": ["UNKNOWN"],
+        "Phone": ["Unknown"],
+        "BusinessType": ["Unknown"],
+        "ResellerName": ["Unknown"],
+        "NumberEmployees": [0],
+        "OrderFrequency": ["U"],  # U = Unknown
+        "OrderMonth": [0],
+        "FirstOrderYear": [0],
+        "LastOrderYear": [0],
+        "ProductLine": ["Unknown"],
+        "AddressLine1": ["Unknown"],
+        "AddressLine2": ["Unknown"],
+        "AnnualSales": [0.0],
+        "BankName": ["Unknown"],
+        "AnnualRevenue": [0.0],
+        "YearOpened": [0]
+    })
+
+    # Concatenar con dimReseller existente
+    dimReseller = pd.concat([dimReseller, unknown_reseller], ignore_index=True)
 
     return dimReseller
 
@@ -836,8 +890,18 @@ def transformDimSalesTerritory(SalesTerritory):
         "NA",         # SalesTerritoryCountry
         "NA"        # SalesTerritoryGroup
     ]
+    
+    # Creamos la fila "Unknown"
+    unknown_territory = pd.DataFrame({
+        "SalesTerritoryKey": [0],
+        "SalesTerritoryAlternateKey": [0],
+        "SalesTerritoryRegion": ["Unknown"],
+        "SalesTerritoryCountry": ["Unknown"],
+        "SalesTerritoryGroup": ["Unknown"]
+    })
 
-
+    # Concatenar con dimSalesTerritory existente
+    dimSalesTerritory = pd.concat([dimSalesTerritory, unknown_territory], ignore_index=True)
     return dimSalesTerritory
 
 #Atributos: CurrencyKey, DateKey, AverageRate, EndOfDayRate
@@ -899,7 +963,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
         dimCustomer[["CustomerAlternateKey", "CustomerKey"]],
         left_on="AccountNumber",
         right_on="CustomerAlternateKey",
-        how="inner"
+        how="left"
     ).drop(columns=["CustomerAlternateKey", "AccountNumber"])
     
     factInternetSales = factInternetSales.merge(
@@ -913,7 +977,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales = factInternetSales.merge(
         currencyRate[["CurrencyRateID", "ToCurrencyCode"]],
         on="CurrencyRateID",
-        how="inner"
+        how="left"
     ).drop(columns=["CurrencyRateID"]).merge(
         dimCurrency[["CurrencyAlternateKey", "CurrencyKey"]],
         left_on="ToCurrencyCode",
@@ -944,21 +1008,28 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
     factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
     factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
-    factInternetSales["TaxAmt"] = (factInternetSales["ExtendedAmount"] - factInternetSales["DiscountAmount"]) * (factInternetSales["TaxRate"] / 100)
-
-    factInternetSales = factInternetSales.drop(columns=["TaxRate"])
     
-
+      
+    # Manejo de CustomerKey y CurrencyKey desconocido
+    factInternetSales["CustomerKey"] = factInternetSales["CustomerKey"].fillna(0).astype(int)
+    factInternetSales["CurrencyKey"] = factInternetSales["CurrencyKey"].fillna(0).astype(int)
+    factInternetSales["TaxRate"] = factInternetSales["TaxRate"].fillna(0)
+    
+    factInternetSales["TaxAmt"] = (factInternetSales["ExtendedAmount"] - factInternetSales["DiscountAmount"]) * (factInternetSales["TaxRate"] / 100)
+    
+    factInternetSales = factInternetSales.drop(columns=["TaxRate"])
+    factInternetSales = factInternetSales.drop_duplicates(
+        subset=["SalesOrderNumber", "SalesOrderLineNumber"]
+    )
+    
     column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey", "PromotionKey", "CurrencyKey",
         "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
         "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
         "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
     
     factInternetSales = factInternetSales[column_order]
-    factInternetSales = factInternetSales.drop_duplicates(subset=['SalesOrderNumber', 'SalesOrderLineNumber'])
+    
     return factInternetSales
-
-
 
 #Atributos: SalesOrderNumber, SalesOrderLineNumber, SalesReasonKey
 def transformFactInternetSalesReason(sales):
@@ -988,7 +1059,7 @@ def transformFactInternetSalesReason(sales):
 # UnitPriceDiscountPct, DiscountAmount, ProductStandardCost, TotalProductCost
 # SalesAmount, TaxAmt, Freight, CarrierTrackingNumber
 # CustomerPONumber, OrderDate, DueDate, ShipDate
-def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimCurrency, currencyRate, dimReseller):
+def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimCurrency, currencyRate, dimReseller, dimEmployee):
     salesOrderDetail = salesOrderDetail.copy()
     salesOrderDetail["SalesOrderLineNumber"] = (
         salesOrderDetail.groupby("SalesOrderID").cumcount() + 1
@@ -1006,7 +1077,7 @@ def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimC
     factResellerSales = factResellerSales.merge(
         salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
                             "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
-                            "Freight", "CurrencyRateID", "TaxAmt"]],
+                            "Freight", "CurrencyRateID", "TaxAmt", "SalesPersonID"]],
         on="SalesOrderID",
         how="left"
     ).rename(columns={
@@ -1025,10 +1096,7 @@ def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimC
         how="left"
     ).drop(columns=["CustomerID"])
 
-    
 
-    factResellerSales = factResellerSales[factResellerSales["ResellerKey"].notna()]
-    
     factResellerSales = factResellerSales.merge(
         product[["ProductID", "StandardCost"]],
         left_on="ProductKey",
@@ -1048,7 +1116,16 @@ def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimC
         how="left"
     ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
 
+    factResellerSales["SalesPersonID"] = factResellerSales["SalesPersonID"].astype("Int64")
+    dimEmployee["EmployeeNationalIDAlternateKey"] = dimEmployee["EmployeeNationalIDAlternateKey"].astype("Int64")
     
+    factResellerSales = factResellerSales.merge(
+        dimEmployee[["EmployeeKey", "EmployeeNationalIDAlternateKey"]],
+        left_on="SalesPersonID",    # columna en fact table
+        right_on="EmployeeNationalIDAlternateKey",  # columna en dimEmployee
+        how="left"
+    ).drop(columns=["EmployeeNationalIDAlternateKey","SalesPersonID"])
+
 
     def transforma_date(date):
         if pd.isna(date):
@@ -1063,9 +1140,11 @@ def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimC
     factResellerSales["DiscountAmount"] = factResellerSales["ExtendedAmount"] * factResellerSales["UnitPriceDiscountPct"]
     factResellerSales["TotalProductCost"] = factResellerSales["ProductStandardCost"] * factResellerSales["OrderQuantity"]
 
-    
+    factResellerSales["CurrencyKey"] = factResellerSales["CurrencyKey"].fillna(0).astype(int)
+    factResellerSales["ResellerKey"] = factResellerSales["ResellerKey"].fillna(0).astype(int)
+    factResellerSales["EmployeeKey"] = factResellerSales["EmployeeKey"].fillna(0).astype(int)
 
-    column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "PromotionKey", "CurrencyKey",
+    column_order = ["EmployeeKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "ResellerKey", "EmployeeKey", "PromotionKey", "CurrencyKey",
         "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
         "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
         "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
@@ -1124,6 +1203,45 @@ def fkDimCustomer(dimCustomer, dimGeography, person):
         'PhoneNumber' : 'Phone'
     })
     
+    dimCustomer['HouseOwnerFlag'] = dimCustomer['HouseOwnerFlag'].apply(
+        lambda x: 'U' if pd.isna(x) else str(int(x))
+    )
+    
+    unknown_customer = pd.DataFrame({
+        "CustomerKey": [0],
+        "GeographyKey": [0],  # Asegúrate de tener GeographyKey=0 en DimGeography también
+        "CustomerAlternateKey": ["UNKNOWN"],
+        "Title": ["Unknown"],
+        "FirstName": ["Unknown"],
+        "MiddleName": ["Unknown"],
+        "LastName": ["Unknown"],
+        "NameStyle": [0],  # 0 o 1 según convención
+        "BirthDate": [pd.NaT],
+        "MaritalStatus": ["U"],  # U = Unknown
+        "Suffix": [None],
+        "Gender": ["U"],  # U = Unknown
+        "EmailAddress": ["unknown@example.com"],
+        "YearlyIncome": [None],
+        "TotalChildren": [0],
+        "NumberChildrenAtHome": [0],
+        "EnglishEducation": ["Unknown"],
+        "SpanishEducation": ["Unknown"],
+        "FrenchEducation": ["Unknown"],
+        "EnglishOccupation": ["Unknown"],
+        "SpanishOccupation": ["Unknown"],
+        "FrenchOccupation": ["Unknown"],
+        "HouseOwnerFlag": ["U"],  # U = Unknown
+        "NumberCarsOwned": [0],
+        "AddressLine1": ["Unknown"],
+        "AddressLine2": ["Unknown"],
+        "Phone": ["Unknown"],
+        "DateFirstPurchase": [pd.NaT],
+        "CommuteDistance": ["Unknown"]
+    })
+
+    # Concatenar con dimCustomer existente
+    dimCustomer = pd.concat([dimCustomer, unknown_customer], ignore_index=True)
+
     return dimCustomer
 
 

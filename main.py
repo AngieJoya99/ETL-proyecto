@@ -127,7 +127,8 @@ factResellerSales = transform.transformFactResellerSales(
     sales["SalesOrderHeader"], 
     dimCurrency.copy(), 
     sales["CurrencyRate"], 
-    dimReseller.copy()
+    dimReseller.copy(),
+    dimEmployee.copy()
 )
 print("Transformacion factResellerSales Finalizada")
 newFactCurrencyRate = transform.transformNewFactCurrencyRate(sales)
@@ -187,7 +188,6 @@ print("Carga factCurrencyRate Finalizada")
 load.load(newFactCurrencyRate, olap, 'NewFactCurrencyRate', True)
 print("Carga newFactCurrencyRate Finalizada")
 
-print(factInternetSales.head())
 load.load(factInternetSales, olap, 'FactInternetSales', True)
 print("Carga factInternetSales Finalizada")
 
@@ -199,3 +199,5 @@ print("Carga factInternetSalesReason Finalizada")
 # print("Carga factResellerSales Finalizada")
 
 print('success all tables loaded')
+
+#Añadir cero a customer, geography, currency, DimSalesTerritory, employee, reseller

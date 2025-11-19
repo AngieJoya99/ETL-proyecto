@@ -288,14 +288,14 @@ FactInternetSales:
 
       PRIMARY KEY (SalesOrderNumber, SalesOrderLineNumber),
 
-      -- FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
-      -- FOREIGN KEY (OrderDateKey) REFERENCES DimDate(DateKey),
-      -- FOREIGN KEY (DueDateKey) REFERENCES DimDate(DateKey),
-      -- FOREIGN KEY (ShipDateKey) REFERENCES DimDate(DateKey),
-      -- FOREIGN KEY (CustomerKey) REFERENCES DimCustomer(CustomerKey),
-      -- FOREIGN KEY (PromotionKey) REFERENCES DimPromotion(PromotionKey),
-      -- FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey),
-      -- FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey)
+      FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
+      FOREIGN KEY (OrderDateKey) REFERENCES DimDate(DateKey),
+      FOREIGN KEY (DueDateKey) REFERENCES DimDate(DateKey),
+      FOREIGN KEY (ShipDateKey) REFERENCES DimDate(DateKey),
+      FOREIGN KEY (CustomerKey) REFERENCES DimCustomer(CustomerKey),
+      FOREIGN KEY (PromotionKey) REFERENCES DimPromotion(PromotionKey),
+      FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey),
+      FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey)
     );
 
 FactInternetSalesReason:
@@ -307,8 +307,8 @@ FactInternetSalesReason:
 
       PRIMARY KEY (SalesOrderNumber, SalesOrderLineNumber, SalesReasonKey),
 
-      -- FOREIGN KEY (SalesOrderNumber, SalesOrderLineNumber)
-        -- REFERENCES FactInternetSales(SalesOrderNumber, SalesOrderLineNumber),
+      FOREIGN KEY (SalesOrderNumber, SalesOrderLineNumber)
+        REFERENCES FactInternetSales(SalesOrderNumber, SalesOrderLineNumber),
 
       FOREIGN KEY (SalesReasonKey)
         REFERENCES DimSalesReason(SalesReasonKey)
@@ -347,15 +347,15 @@ FactResellerSales:
 
       PRIMARY KEY (SalesOrderNumber, SalesOrderLineNumber),
 
-      FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
-      FOREIGN KEY (OrderDateKey) REFERENCES DimDate(DateKey),
-      FOREIGN KEY (DueDateKey) REFERENCES DimDate(DateKey),
-      FOREIGN KEY (ShipDateKey) REFERENCES DimDate(DateKey),
-      FOREIGN KEY (ResellerKey) REFERENCES DimReseller(ResellerKey),
-      FOREIGN KEY (EmployeeKey) REFERENCES DimEmployee(EmployeeKey),
-      FOREIGN KEY (PromotionKey) REFERENCES DimPromotion(PromotionKey),
-      FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey),
-      FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey)
+      -- FOREIGN KEY (ProductKey) REFERENCES DimProduct(ProductKey),
+      -- FOREIGN KEY (OrderDateKey) REFERENCES DimDate(DateKey),
+      -- FOREIGN KEY (DueDateKey) REFERENCES DimDate(DateKey),
+      -- FOREIGN KEY (ShipDateKey) REFERENCES DimDate(DateKey),
+      -- FOREIGN KEY (ResellerKey) REFERENCES DimReseller(ResellerKey),
+      -- FOREIGN KEY (EmployeeKey) REFERENCES DimEmployee(EmployeeKey),
+      -- FOREIGN KEY (PromotionKey) REFERENCES DimPromotion(PromotionKey),
+      -- FOREIGN KEY (CurrencyKey) REFERENCES DimCurrency(CurrencyKey),
+      -- FOREIGN KEY (SalesTerritoryKey) REFERENCES DimSalesTerritory(SalesTerritoryKey)
     );
 
 NewFactCurrencyRate:
