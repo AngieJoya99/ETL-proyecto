@@ -25,6 +25,7 @@ oltp = create_engine(url_oltp)
 olap = create_engine(url_olap)
 inspector = inspect(olap)
 tnames = inspector.get_table_names()
+print("tnames =",tnames)
 
 if not tnames:
     conn_str = (
@@ -190,12 +191,11 @@ print(factInternetSales.head())
 load.load(factInternetSales, olap, 'FactInternetSales', True)
 print("Carga factInternetSales Finalizada")
 
-print(factInternetSalesReason.head())
 load.load(factInternetSalesReason, olap, 'FactInternetSalesReason', True)
 print("Carga factInternetSalesReason Finalizada")
 
-print(factResellerSales.head())
-load.load(factResellerSales, olap, 'FactResellerSales', True)
-print("Carga factResellerSales Finalizada")
+# print(factResellerSales.head())
+# load.load(factResellerSales, olap, 'FactResellerSales', True)
+# print("Carga factResellerSales Finalizada")
 
 print('success all tables loaded')
