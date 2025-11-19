@@ -9,6 +9,7 @@ python -m venv my_env
 pip install -r requirements.txt
 pip install psycopg2
 pip install pyodbc
+pip install deep-translator
 ```
 
 ## Configurar la conexión con la base de datos
@@ -26,7 +27,3 @@ nombre_conexion:
   host: localhost
   port: #puerto, usualmente 1433
 ```
-
-## Probar la conexión
-
-Ejecutar el notebook pruebaConexion.ipynb y verificar que corra sin errores
