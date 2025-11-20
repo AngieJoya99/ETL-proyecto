@@ -122,13 +122,17 @@ print("Transformacion factInternetSales Finalizada")
 factInternetSalesReason = transform.transformFactInternetSalesReason(sales)
 print("Transformacion factInternetSalesReason Finalizada")
 factResellerSales = transform.transformFactResellerSales(        
-    production["Product"], 
-    sales["SalesOrderDetail"], 
-    sales["SalesOrderHeader"], 
-    dimCurrency.copy(), 
-    sales["CurrencyRate"], 
-    dimReseller.copy(),
-    dimEmployee.copy()
+    production["Product"],
+    sales["SalesOrderDetail"],
+    sales["SalesOrderHeader"],
+    dimCurrency,
+    sales["CurrencyRate"],
+    dimReseller,
+    sales["Customer"], 
+    sales["SalesPerson"], 
+    dimEmployee, 
+    sales["Store"], 
+    humanResources["Employee"]
 )
 print("Transformacion factResellerSales Finalizada")
 newFactCurrencyRate = transform.transformNewFactCurrencyRate(sales)
@@ -194,9 +198,9 @@ print("Carga factInternetSales Finalizada")
 load.load(factInternetSalesReason, olap, 'FactInternetSalesReason', True)
 print("Carga factInternetSalesReason Finalizada")
 
-# print(factResellerSales.head())
-# load.load(factResellerSales, olap, 'FactResellerSales', True)
-# print("Carga factResellerSales Finalizada")
+print(factResellerSales.head())
+load.load(factResellerSales, olap, 'FactResellerSales', True)
+print("Carga factResellerSales Finalizada")
 
 print('success all tables loaded')
 
