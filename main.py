@@ -146,8 +146,6 @@ print("Transformacion hechos Finalizada")
 
 #Load
 
-
-
 # CARGA DE DIMENSIONES
 load.load(dimDate, olap, 'DimDate', True)
 print("Carga dimDate Finalizada")
@@ -198,10 +196,7 @@ print("Carga factInternetSales Finalizada")
 load.load(factInternetSalesReason, olap, 'FactInternetSalesReason', True)
 print("Carga factInternetSalesReason Finalizada")
 
-print(factResellerSales.head())
 load.load(factResellerSales, olap, 'FactResellerSales', True)
 print("Carga factResellerSales Finalizada")
 
 print('success all tables loaded')
-
-#Añadir cero a customer, geography, currency, DimSalesTerritory, employee, reseller

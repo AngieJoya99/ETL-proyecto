@@ -943,7 +943,7 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales = factInternetSales.merge(
         salesOrderHeader[["SalesOrderID", "SalesOrderNumber", "RevisionNumber", "OrderDate", 
                             "DueDate", "ShipDate", "CustomerID", "TerritoryID", 
-                            "Freight", "CurrencyRateID"]],
+                            "Freight", "CurrencyRateID", "TaxAmt"]],
         on="SalesOrderID",
         how="left"
     ).rename(columns={
@@ -985,17 +985,6 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
         how="left"
     ).drop(columns=["CurrencyAlternateKey", "ToCurrencyCode"])
 
-    factInternetSales = factInternetSales.merge(
-        stateProvince[["StateProvinceID", "TerritoryID"]],
-        left_on="SalesTerritoryKey",
-        right_on="TerritoryID",
-        how="left"
-    ).drop(columns=["TerritoryID"]).merge(
-        salesTaxRate[["StateProvinceID", "TaxRate"]],
-        on="StateProvinceID",
-        how="left"
-    ).drop(columns=["StateProvinceID"])
-
     def transforma_date(date):
         if pd.isna(date):
             return None
@@ -1008,26 +997,18 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales["ExtendedAmount"] = factInternetSales["UnitPrice"] * factInternetSales["OrderQuantity"]
     factInternetSales["DiscountAmount"] = factInternetSales["ExtendedAmount"] * factInternetSales["UnitPriceDiscountPct"]
     factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
-    
-      
-    # Manejo de CustomerKey y CurrencyKey desconocido
-    factInternetSales["CustomerKey"] = factInternetSales["CustomerKey"].fillna(0).astype(int)
+
     factInternetSales["CurrencyKey"] = factInternetSales["CurrencyKey"].fillna(0).astype(int)
-    factInternetSales["TaxRate"] = factInternetSales["TaxRate"].fillna(0)
-    
-    factInternetSales["TaxAmt"] = (factInternetSales["ExtendedAmount"] - factInternetSales["DiscountAmount"]) * (factInternetSales["TaxRate"] / 100)
-    
-    factInternetSales = factInternetSales.drop(columns=["TaxRate"])
-    factInternetSales = factInternetSales.drop_duplicates(
-        subset=["SalesOrderNumber", "SalesOrderLineNumber"]
-    )
-    
+    factInternetSales["CustomerKey"] = factInternetSales["CustomerKey"].fillna(0).astype(int)
+
     column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey", "PromotionKey", "CurrencyKey",
         "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
         "UnitPrice", "ExtendedAmount", "UnitPriceDiscountPct", "DiscountAmount", "ProductStandardCost", "TotalProductCost",
         "SalesAmount", "TaxAmt", "Freight", "CarrierTrackingNumber", "OrderDate", "DueDate", "ShipDate"]
     
     factInternetSales = factInternetSales[column_order]
+    
+    factInternetSales = factInternetSales.drop_duplicates(subset=["SalesOrderNumber","SalesOrderLineNumber"])
     
     return factInternetSales
 
@@ -1159,7 +1140,7 @@ def transformFactResellerSales(product, salesOrderDetail, salesOrderHeader, dimC
     factResellerSales["DiscountAmount"] = factResellerSales["ExtendedAmount"] * factResellerSales["UnitPriceDiscountPct"]
     factResellerSales["TotalProductCost"] = factResellerSales["ProductStandardCost"] * factResellerSales["OrderQuantity"]
 
-    
+    factResellerSales["CurrencyKey"] = factResellerSales["CurrencyKey"].fillna(0).astype(int)
 
     column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "ResellerKey", "EmployeeKey","PromotionKey", "CurrencyKey",
         "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
