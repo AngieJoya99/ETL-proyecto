@@ -107,23 +107,12 @@ def transformDimCustomer(person, sales):
     ).rename(columns={'AccountNumber_y': 'CustomerAlternateKey'})
 
     
-    # Renombrar columnas para que coincidan con DimCustomer
-    dimCustomer = dimCustomer.rename(columns={
-        'AddressLine1': 'AddressLine1',
-        'AddressLine2': 'AddressLine2',
-        'PhoneNumber': 'Phone',
-        'AddressID': 'GeographyKey'
-    })
-    
-    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 'CustomerID', 'StoreID', 'TerritoryID', 
+    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 
+       'CustomerID', 'StoreID', 'TerritoryID', 
        'ModifiedDate_x', 'AddressTypeID', 'PersonID',
        'rowguid', 'ModifiedDate_y', 'AccountNumber_x',
-       'ModifiedDate', 'HomeOwnerFlag'      
-    ], errors='ignore')
-    
-    # Asegurar que HouseOwnerFlag existe (en lugar de HomeOwnerFlag)
-    if 'HouseOwnerFlag' not in dimCustomer.columns:
-        dimCustomer['HouseOwnerFlag'] = None
+       'ModifiedDate',       
+    ])
     
     return dimCustomer
 
@@ -1181,7 +1170,6 @@ def transformNewFactCurrencyRate(sales):
 
 def fkDimCustomer(dimCustomer, dimGeography, person):
     stateProvice = person["StateProvince"][["StateProvinceID", "StateProvinceCode"]].copy()
-    
     dimCustomer = dimCustomer.merge(stateProvice, on="StateProvinceID", how="left")
     
     # Crear llave compuesta en ambos
@@ -1196,23 +1184,22 @@ def fkDimCustomer(dimCustomer, dimGeography, person):
         dimGeography["StateProvinceCode"].astype(str).str.strip() + "|" +
         dimGeography["PostalCode"].astype(str).str.strip()
     )
-
+    
     # Merge con la llave compuesta
     dimCustomer = dimCustomer.merge(
         dimGeography[["GeographyKey", "merge_key"]],
         on="merge_key",
         how="left"
-    )
-
+    )    
     # Limpiar
     dimCustomer = dimCustomer.drop(columns=[
         "merge_key", "PostalCode", "City", "StateProvinceID", 
-        "PostalCode", "StateProvinceCode", "AddressID"
+        "StateProvinceCode", "AddressID"
         ])
 
     dimCustomer = dimCustomer.rename(columns={
         'HomeOwnerFlag' : 'HouseOwnerFlag',
-        'PhoneNumber' : 'Phone'
+        'PhoneNumber' : 'Phone',
     })
     
     dimCustomer['HouseOwnerFlag'] = dimCustomer['HouseOwnerFlag'].apply(
