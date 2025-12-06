@@ -5,6 +5,10 @@ import pandas as pd
 from sqlalchemy import create_engine, inspect
 import yaml
 import os
+import warnings
+from sqlalchemy.exc import SAWarning
+
+warnings.filterwarnings("ignore", category=SAWarning)
 
 #Se leen así: humanResources["Shift"]
 def cargaSegura(engine, schema, table):

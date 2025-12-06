@@ -25,7 +25,7 @@ oltp = create_engine(url_oltp)
 olap = create_engine(url_olap)
 inspector = inspect(olap)
 tnames = inspector.get_table_names()
-print("tnames =",tnames)
+print("Tablas que ya existen =",tnames)
 
 if not tnames:
     conn_str = (
@@ -54,12 +54,15 @@ sales = extract.extractSales(oltp)
 hierarchy = extract.extractEmployeeHierarchy(oltp)
 description = extract.extracProductDescription(oltp)
 dealerPrices = extract.extractDealerPrices(oltp)
-print("Extraccion Finalizada")
+print("EXTRACCIÓN FINALIZADA")
 
 #Transform dimensions
 dimCurrency = transform.transformDimCurrency(sales["Currency"])
+print("Transformacion dimCurrency Finalizada")
 dimCustomer = transform.transformDimCustomer(person, sales)
+print("Transformacion dimCustomer Finalizada")
 dimDate = transform.transformDimDate()
+print("Transformacion dimDate Finalizada")
 dimEmployee = transform.transformDimEmployee(
     humanResources["Employee"], 
     humanResources["EmployeePayHistory"], 
@@ -71,7 +74,9 @@ dimEmployee = transform.transformDimEmployee(
     person["PersonPhone"],
     hierarchy
 )
+print("Transformacion dimEmployee Finalizada")
 dimGeography = transform.transformDimGeography(sales, person)
+print("Transformacion dimGeography Finalizada")
 
 description_translated = utils_etl.translate_missing_fast(description)
 name_translated = utils_etl.translate_missing_fast_name(production["Product"].copy())
@@ -85,11 +90,14 @@ dimProduct = transform.transformDimProduct(
     dealerPrices, 
     size_range_df
 )
-
+print("Transformacion dimProduct Finalizada")
 
 dimProductCategory = transform.transformDimProductCategory(production["ProductCategory"])
+print("Transformacion dimProductCategory Finalizada")
 dimProductSubcategory = transform.transformDimProductSubcategory(production["ProductSubcategory"])
+print("Transformacion dimProductSubcategory Finalizada")
 dimPromotion = transform.transformDimPromotion(sales["SpecialOffer"])
+print("Transformacion dimPromotion Finalizada")
 dimReseller = transform.transformDimReseller(
     sales["Customer"], 
     sales["SalesOrderHeader"], 
@@ -100,9 +108,12 @@ dimReseller = transform.transformDimReseller(
     dimGeography.copy(),
     person["StateProvince"]
 )
+print("Transformacion dimReseller Finalizada")
 dimSalesReason = transform.transformDimSalesReason(sales["SalesReason"])
+print("Transformacion dimSalesReason Finalizada")
 dimSalesTerritory = transform.transformDimSalesTerritory(sales["SalesTerritory"])
-print("Transformacion dimensiones Finalizada")
+print("Transformacion dimSalesTerritory Finalizada")
+print("LA TRANSFORMACIÓN DE DIMENSIONES HA FINALIZADO")
 
 #Transform facts
 factCurrencyRate = transform.transformFactCurrencyRate(sales)
@@ -142,7 +153,7 @@ print("Transformacion newFactCurrencyRate Finalizada")
 dimCustomer = transform.fkDimCustomer(dimCustomer, dimGeography.copy(),person)
 factCurrencyRate = transform.fkFactCurrencyRate(factCurrencyRate, dimCurrency)
 newFactCurrencyRate = transform.fkNewFactCurrencyRate(newFactCurrencyRate, dimCurrency, dimDate)
-print("Transformacion hechos Finalizada")
+print("LA TRANSFORMACIÓN DE HECHOS HA FINALIZADO")
 
 #Load
 
@@ -182,6 +193,7 @@ print("Carga dimEmployee Finalizada")
 
 load.load(dimReseller, olap, 'DimReseller', True)
 print("Carga dimReseller Finalizada")
+print("LA CARGA DE DIMENSIONES HA FINALIZADO")
 
 # CARGA DE TABLAS DE HECHOS
 load.load(factCurrencyRate, olap, 'FactCurrencyRate', True)
@@ -198,5 +210,6 @@ print("Carga factInternetSalesReason Finalizada")
 
 load.load(factResellerSales, olap, 'FactResellerSales', True)
 print("Carga factResellerSales Finalizada")
+print("LA CARGA DE HECHOS HA FINALIZADO")
 
-print('success all tables loaded')
+print('El proceso ha finalizado con éxito')
