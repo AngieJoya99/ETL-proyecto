@@ -102,14 +102,14 @@ def transformDimCustomer(person, sales):
     
     dimCustomer = pd.concat([dimCustomer, demografia], axis=1)
 
-    # Address (AddressLine1, AddressLine2)
+    # Address (AddressLine1, AddressLine2, City, PostalCode, StateProvinceID)
     dimCustomer = dimCustomer.merge(
         person["BusinessEntityAddress"][['BusinessEntityID', 'AddressID']],
         left_on='PersonID',
         right_on='BusinessEntityID',
         how='left'
     ).drop(columns=['BusinessEntityID']).merge(
-        person["Address"][['AddressID', 'AddressLine1', 'AddressLine2']],
+        person["Address"][['AddressID', 'AddressLine1', 'AddressLine2', 'City', 'PostalCode', 'StateProvinceID']],
         left_on='AddressID',
         right_on='AddressID',
         how='left'
@@ -140,7 +140,8 @@ def transformDimCustomer(person, sales):
                     "BirthDate", "MaritalStatus", "Suffix", "Gender", "EmailAddress", "YearlyIncome", "TotalChildren", 
                     "NumberChildrenAtHome", "EnglishEducation", "SpanishEducation", "FrenchEducation", "EnglishOccupation", 
                     "SpanishOccupation", "FrenchOccupation", "HomeOwnerFlag", "NumberCarsOwned", "AddressLine1", 
-                    "AddressLine2", "Phone", "DateFirstPurchase", "CommuteDistance"]
+                    "AddressLine2", "Phone", "DateFirstPurchase", "CommuteDistance", "City", "PostalCode", 
+                    "StateProvinceID"]
     
     dimCustomer = dimCustomer[column_order]
 
@@ -1225,7 +1226,7 @@ def fkDimCustomer(dimCustomer, dimGeography, person):
     # Limpiar
     dimCustomer = dimCustomer.drop(columns=[
         "merge_key", "PostalCode", "City", "StateProvinceID", 
-        "StateProvinceCode", "AddressID"
+        "StateProvinceCode"
         ])
 
     dimCustomer = dimCustomer.rename(columns={
@@ -1236,41 +1237,14 @@ def fkDimCustomer(dimCustomer, dimGeography, person):
     dimCustomer['HouseOwnerFlag'] = dimCustomer['HouseOwnerFlag'].apply(
         lambda x: 'U' if pd.isna(x) else str(int(x))
     )
-    
-    unknown_customer = pd.DataFrame({
-        "CustomerKey": [0],
-        "GeographyKey": [0],  # Asegúrate de tener GeographyKey=0 en DimGeography también
-        "CustomerAlternateKey": ["UNKNOWN"],
-        "Title": ["Unknown"],
-        "FirstName": ["Unknown"],
-        "MiddleName": ["Unknown"],
-        "LastName": ["Unknown"],
-        "NameStyle": [0],  # 0 o 1 según convención
-        "BirthDate": [pd.NaT],
-        "MaritalStatus": ["U"],  # U = Unknown
-        "Suffix": [None],
-        "Gender": ["U"],  # U = Unknown
-        "EmailAddress": ["unknown@example.com"],
-        "YearlyIncome": [None],
-        "TotalChildren": [0],
-        "NumberChildrenAtHome": [0],
-        "EnglishEducation": ["Unknown"],
-        "SpanishEducation": ["Unknown"],
-        "FrenchEducation": ["Unknown"],
-        "EnglishOccupation": ["Unknown"],
-        "SpanishOccupation": ["Unknown"],
-        "FrenchOccupation": ["Unknown"],
-        "HouseOwnerFlag": ["U"],  # U = Unknown
-        "NumberCarsOwned": [0],
-        "AddressLine1": ["Unknown"],
-        "AddressLine2": ["Unknown"],
-        "Phone": ["Unknown"],
-        "DateFirstPurchase": [pd.NaT],
-        "CommuteDistance": ["Unknown"]
-    })
 
-    # Concatenar con dimCustomer existente
-    dimCustomer = pd.concat([dimCustomer, unknown_customer], ignore_index=True)
+    # Llenar valores nulos
+    dimCustomer["Gender"] = dimCustomer["Gender"].fillna("U")
+    dimCustomer["MaritalStatus"] = dimCustomer["MaritalStatus"].fillna("U")
+    dimCustomer["AddressLine1"] = dimCustomer["AddressLine1"].fillna("Unknown")
+    dimCustomer["AddressLine2"] = dimCustomer["AddressLine2"].fillna("Unknown")
+    dimCustomer["CommuteDistance"] = dimCustomer["CommuteDistance"].fillna("Unknown")
+    dimCustomer["GeographyKey"] = dimCustomer["GeographyKey"].fillna(0).astype(int)
 
     return dimCustomer
 
