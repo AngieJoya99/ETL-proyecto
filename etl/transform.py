@@ -46,11 +46,21 @@ def transformDimCurrency(currency):
 #EnglishOccupation, SpanishOccupation, FrenchOccupation, HouseOwnerFlag, NumberCarsOwned, 
 # AddressLine1, AddressLine2, Phone, DateFirstPurchase, CommuteDistance
 def transformDimCustomer(person, sales):
-    #Tipos IN = Individual Customer
-    dimCustomer = person["Person"][person["Person"]["PersonType"] == 'IN'].copy()
+    
+    dimCustomer = sales["Customer"][sales["Customer"]["PersonID"].notna()].copy()
+
     dimCustomer = dimCustomer.drop(columns=[
-        'PersonType', 'EmailPromotion', 'AdditionalContactInfo', 'ModifiedDate', 'rowguid'
+        'StoreID', 'TerritoryID', 'rowguid', 'ModifiedDate'
     ])
+
+    dimCustomer = dimCustomer.rename(columns={'AccountNumber': 'CustomerAlternateKey'})
+
+    dimCustomer = dimCustomer.merge(
+        person["Person"][['BusinessEntityID', 'Title', 'FirstName', 'MiddleName', 'LastName', 'Suffix', 'Demographics', 'NameStyle']],
+        left_on='PersonID',
+        right_on='BusinessEntityID',
+        how='left'
+    ).drop(columns=['BusinessEntityID'])
     
     demografia = utils_etl.extraerDemografia(dimCustomer,"Demographics").drop(columns=[
         'TotalPurchaseYTD'
@@ -59,6 +69,10 @@ def transformDimCustomer(person, sales):
         'Education': 'EnglishEducation',
         'Occupation': 'EnglishOccupation',
     })
+
+    demografia["EnglishEducation"] = demografia["EnglishEducation"].fillna("Unknown")
+    demografia["EnglishOccupation"] = demografia["EnglishOccupation"].fillna("Unknown")
+
     
     #Añadir español y francés
     education_map = {
@@ -66,14 +80,16 @@ def transformDimCustomer(person, sales):
         "Graduate Degree": {"Spanish": "Estudios de postgrado", "French": "Bac + 3"},
         "High School": {"Spanish": "Educación secundaria", "French": "Bac + 2"},
         "Partial College": {"Spanish": "Estudios universitarios (en curso)", "French": "Baccalauréat"},
-        "Partial High School": {"Spanish": "Educación secundaria (en curso)", "French": "Niveau bac"}
+        "Partial High School": {"Spanish": "Educación secundaria (en curso)", "French": "Niveau bac"},
+        "Unknown": {"Spanish": "Desconocido", "French": "Inconnu"}
     }
     occupation_map = {
         "Clerical": {"Spanish": "Administrativo", "French": "Employé"},
         "Management": {"Spanish": "Gestión", "French": "Direction"},
         "Manual": {"Spanish": "Obrero", "French": "Ouvrier"},
         "Professional": {"Spanish": "Profesional", "French": "Cadre"},
-        "Skilled Manual": {"Spanish": "Obrero especializado", "French": "Technicien"}
+        "Skilled Manual": {"Spanish": "Obrero especializado", "French": "Technicien"},
+        "Unknown": {"Spanish": "Desconocido", "French": "Inconnu"}
     }
     demografia["EnglishEducation"] = demografia["EnglishEducation"].str.strip()
     demografia["EnglishOccupation"] = demografia["EnglishOccupation"].str.strip()
@@ -85,34 +101,50 @@ def transformDimCustomer(person, sales):
     demografia["FrenchOccupation"] = demografia["EnglishOccupation"].map(lambda x: occupation_map[x]["French"])
     
     dimCustomer = pd.concat([dimCustomer, demografia], axis=1)
-    
-    businessEntityAddress = person["BusinessEntityAddress"]
-    direccion = person["Address"].drop(columns=['rowguid'])
-    customer = sales["Customer"].drop(columns=['rowguid'])
-    phone = person["PersonPhone"].drop(columns=['ModifiedDate', 'PhoneNumberTypeID'])
-    email = person["EmailAddress"].drop(columns=['EmailAddressID', 'rowguid', 'ModifiedDate'])
-    
-    dimCustomer = dimCustomer.merge(customer[customer['PersonID'].notna()], left_on='BusinessEntityID', right_on='PersonID', how='inner').drop(columns=['PersonID'])
-    dimCustomer = dimCustomer.merge(businessEntityAddress, on='BusinessEntityID', how='left')
-    dimCustomer = dimCustomer.merge(direccion, on='AddressID', how='left')
-    dimCustomer = dimCustomer.merge(phone, on='BusinessEntityID', how='left')
-    dimCustomer = dimCustomer.merge(email, on='BusinessEntityID', how='left')
+
+    # Address (AddressLine1, AddressLine2)
+    dimCustomer = dimCustomer.merge(
+        person["BusinessEntityAddress"][['BusinessEntityID', 'AddressID']],
+        left_on='PersonID',
+        right_on='BusinessEntityID',
+        how='left'
+    ).drop(columns=['BusinessEntityID']).merge(
+        person["Address"][['AddressID', 'AddressLine1', 'AddressLine2']],
+        left_on='AddressID',
+        right_on='AddressID',
+        how='left'
+    ).drop(columns=['AddressID'])
+
+    # Phone
+    dimCustomer = dimCustomer.merge(
+        person["PersonPhone"][['BusinessEntityID', 'PhoneNumber']],
+        left_on='PersonID',
+        right_on='BusinessEntityID',
+        how='left'
+    ).drop(columns=['BusinessEntityID']).rename(columns={'PhoneNumber': 'Phone'})
+
+    # EmailAddress
+    dimCustomer = dimCustomer.merge(
+        person["EmailAddress"][['BusinessEntityID', 'EmailAddress']],
+        left_on='PersonID',
+        right_on='BusinessEntityID',
+        how='left'
+    ).drop(columns=['BusinessEntityID'])
 
     dimCustomer['CustomerKey'] = range(11000, 11000 + len(dimCustomer))
-    dimCustomer = dimCustomer.merge(
-        customer[customer['PersonID'].notna()][['PersonID', 'AccountNumber']],
-        left_on='BusinessEntityID',
-        right_on='PersonID',
-        how='left'
-    ).rename(columns={'AccountNumber_y': 'CustomerAlternateKey'})
+   
 
+    dimCustomer = dimCustomer.drop(columns=['Demographics', 'CustomerID', 'PersonID'])
+
+    column_order = ["CustomerKey", "CustomerAlternateKey", "Title", "FirstName", "MiddleName", "LastName", "NameStyle",
+                    "BirthDate", "MaritalStatus", "Suffix", "Gender", "EmailAddress", "YearlyIncome", "TotalChildren", 
+                    "NumberChildrenAtHome", "EnglishEducation", "SpanishEducation", "FrenchEducation", "EnglishOccupation", 
+                    "SpanishOccupation", "FrenchOccupation", "HomeOwnerFlag", "NumberCarsOwned", "AddressLine1", 
+                    "AddressLine2", "Phone", "DateFirstPurchase", "CommuteDistance"]
     
-    dimCustomer = dimCustomer.drop(columns=['BusinessEntityID', 'Demographics', 
-       'CustomerID', 'StoreID', 'TerritoryID', 
-       'ModifiedDate_x', 'AddressTypeID', 'PersonID',
-       'rowguid', 'ModifiedDate_y', 'AccountNumber_x',
-       'ModifiedDate',       
-    ])
+    dimCustomer = dimCustomer[column_order]
+
+    dimCustomer = dimCustomer.drop_duplicates(subset=["CustomerAlternateKey"])
     
     return dimCustomer
 
@@ -1000,7 +1032,6 @@ def transformFactInternetSales(product, salesOrderDetail, salesOrderHeader, cust
     factInternetSales["TotalProductCost"] = factInternetSales["ProductStandardCost"] * factInternetSales["OrderQuantity"]
 
     factInternetSales["CurrencyKey"] = factInternetSales["CurrencyKey"].fillna(0).astype(int)
-    factInternetSales["CustomerKey"] = factInternetSales["CustomerKey"].fillna(0).astype(int)
 
     column_order = ["ProductKey", "OrderDateKey", "DueDateKey", "ShipDateKey", "CustomerKey", "PromotionKey", "CurrencyKey",
         "SalesTerritoryKey", "SalesOrderNumber", "SalesOrderLineNumber", "RevisionNumber", "OrderQuantity", 
